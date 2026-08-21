@@ -43,6 +43,7 @@ RUN apk add --no-cache ca-certificates tzdata && \
     chown -R nonroot:nonroot /tmp/memos
 
 COPY --from=backend /out/memos /usr/local/bin/memos
+COPY --chmod=0555 scripts/run-vercel.sh /usr/local/bin/run-vercel
 
 USER nonroot
 WORKDIR /tmp/memos
@@ -54,4 +55,4 @@ ENV PORT=5230 \
 
 EXPOSE 5230
 
-ENTRYPOINT ["sh", "-c", "exec /usr/local/bin/memos --addr \"${MEMOS_ADDR:-0.0.0.0}\" --port \"${PORT:-5230}\""]
+ENTRYPOINT ["/usr/local/bin/run-vercel"]
