@@ -36,7 +36,11 @@ func RegisterSSERoutes(router sseRouteRegistrar, hub *SSEHub, storeInstance *sto
 func handleSSE(c *echo.Context, hub *SSEHub, authenticator *auth.Authenticator) error {
 	// Authenticate the request.
 	authHeader := c.Request().Header.Get("Authorization")
-	result := authenticator.Authenticate(c.Request().Context(), authHeader)
+	result, err := authenticator.Authenticate(c.Request().Context(), authHeader)
+	if err != nil {
+		slog.Error("SSE authentication backend unavailable", "error", err)
+		return c.JSON(http.StatusServiceUnavailable, map[string]string{"error": "authentication backend unavailable"})
+	}
 	if result == nil {
 		return c.JSON(http.StatusUnauthorized, map[string]string{"error": "authentication required"})
 	}

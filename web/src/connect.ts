@@ -10,6 +10,7 @@ import { InstanceService } from "./types/proto/api/v1/instance_service_pb";
 import { MemoService } from "./types/proto/api/v1/memo_service_pb";
 import { MemoViewService } from "./types/proto/api/v1/memo_view_service_pb";
 import { UserService } from "./types/proto/api/v1/user_service_pb";
+import { isUnauthenticatedError } from "./utils/auth-error";
 import { redirectOnAuthFailure } from "./utils/auth-redirect";
 import { getVisitorID } from "./utils/visitor-id";
 
@@ -177,7 +178,9 @@ const authInterceptor: Interceptor = (next) => async (req) => {
       req.header.set(RETRY_HEADER, RETRY_HEADER_VALUE);
       return await next(req);
     } catch (refreshError) {
-      redirectOnAuthFailure();
+      if (isUnauthenticatedError(refreshError)) {
+        redirectOnAuthFailure();
+      }
       throw refreshError;
     }
   }

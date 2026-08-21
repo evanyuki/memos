@@ -51,6 +51,8 @@ WORKDIR /tmp/memos
 ENV PORT=5230 \
     MEMOS_ADDR=0.0.0.0 \
     MEMOS_DATA=/tmp/memos \
+    MEMOS_DB_MAX_OPEN_CONNS=2 \
+    MEMOS_DB_MAX_IDLE_CONNS=0 \
     TZ=UTC
 
 EXPOSE 5230

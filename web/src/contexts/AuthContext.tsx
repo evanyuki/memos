@@ -9,6 +9,7 @@ import type {
   UserSetting_TagsSetting,
   UserSetting_WebhooksSetting,
 } from "@/types/proto/api/v1/user_service_pb";
+import { isUnauthenticatedError } from "@/utils/auth-error";
 
 interface AuthState {
   currentUser: User | undefined;
@@ -21,6 +22,7 @@ interface AuthState {
   isUserSettingsInitialized: boolean;
   isInitialized: boolean;
   isLoading: boolean;
+  initializationError: Error | undefined;
 }
 
 interface AuthContextValue extends AuthState {
@@ -32,6 +34,8 @@ interface AuthContextValue extends AuthState {
 
 const AuthContext = createContext<AuthContextValue | null>(null);
 
+const toError = (error: unknown): Error => (error instanceof Error ? error : new Error(String(error)));
+
 /** Settled auth state for a request with no valid session (init finished, not loading). */
 const UNAUTHENTICATED_STATE: AuthState = {
   currentUser: undefined,
@@ -42,6 +46,7 @@ const UNAUTHENTICATED_STATE: AuthState = {
   isUserSettingsInitialized: true,
   isInitialized: true,
   isLoading: false,
+  initializationError: undefined,
 };
 
 export function AuthProvider({ children }: { children: ReactNode }) {
@@ -55,6 +60,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     isUserSettingsInitialized: false,
     isInitialized: false,
     isLoading: true,
+    initializationError: undefined,
   });
 
   const fetchUserSettings = useCallback(async (userName: string) => {
@@ -87,23 +93,41 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     // `initialize` also runs after sign-in, when the previous unauthenticated
     // state is already marked initialized. Reset the full-readiness flag so
     // consumers cannot render with the new identity and stale/default settings.
-    setState((prev) => ({ ...prev, isUserSettingsInitialized: false, isInitialized: false, isLoading: true }));
+    setState((prev) => ({
+      ...prev,
+      isUserSettingsInitialized: false,
+      isInitialized: false,
+      isLoading: true,
+      initializationError: undefined,
+    }));
 
     // Try to get or refresh the access token.
     // This handles PWA isolated storage scenarios (e.g., iOS Safari) where localStorage
     // may be empty but a valid HTTP-only refresh token cookie still exists.
     // getAccessToken() returns a cached token or loads from localStorage if valid.
+    let refreshError: unknown;
     if (!getAccessToken()) {
       try {
         await refreshAccessToken();
-      } catch {
-        // Refresh failed - no valid session
+      } catch (error) {
+        refreshError = error;
       }
     }
 
     // If we still don't have a token after refresh attempt, skip getCurrentUser call
     // to avoid unnecessary network request for unauthenticated users.
     if (!getAccessToken()) {
+      if (refreshError && !isUnauthenticatedError(refreshError)) {
+        setState((prev) => ({
+          ...prev,
+          isIdentityInitialized: true,
+          isUserSettingsInitialized: true,
+          isInitialized: true,
+          isLoading: false,
+          initializationError: toError(refreshError),
+        }));
+        return;
+      }
       setState(UNAUTHENTICATED_STATE);
       return;
     }
@@ -128,20 +152,52 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       queryClient.setQueryData(userKeys.currentUser(), currentUser);
       queryClient.setQueryData(userKeys.detail(currentUser.name), currentUser);
 
-      const settings = await fetchUserSettings(currentUser.name);
+      try {
+        const settings = await fetchUserSettings(currentUser.name);
+        setState({
+          currentUser,
+          ...settings,
+          isIdentityInitialized: true,
+          isUserSettingsInitialized: true,
+          isInitialized: true,
+          isLoading: false,
+          initializationError: undefined,
+        });
+      } catch (error) {
+        // The identity has already been verified. A transient settings failure
+        // must not clear the session or send the user back to the sign-in page.
+        // Keep memo rendering blocked because these settings include privacy
+        // preferences such as sensitive-content blurring.
+        console.error("Failed to initialize user settings:", error);
+        setState((prev) => ({
+          ...prev,
+          currentUser,
+          isIdentityInitialized: true,
+          isUserSettingsInitialized: false,
+          isInitialized: false,
+          isLoading: false,
+          initializationError: toError(error),
+        }));
+      }
+    } catch (error) {
+      console.error("Failed to initialize auth:", error);
+      if (isUnauthenticatedError(error)) {
+        clearAccessToken();
+        setState(UNAUTHENTICATED_STATE);
+        return;
+      }
 
-      setState({
-        currentUser,
-        ...settings,
+      // Keep the access token on service/database outages so retrying can
+      // restore the session without forcing the user to sign in again.
+      const initializationError = toError(error);
+      setState((prev) => ({
+        ...prev,
         isIdentityInitialized: true,
         isUserSettingsInitialized: true,
         isInitialized: true,
         isLoading: false,
-      });
-    } catch (error) {
-      console.error("Failed to initialize auth:", error);
-      clearAccessToken();
-      setState(UNAUTHENTICATED_STATE);
+        initializationError,
+      }));
     }
   }, [fetchUserSettings, queryClient]);
 

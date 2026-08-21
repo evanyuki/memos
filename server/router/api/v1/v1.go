@@ -111,7 +111,11 @@ func (s *APIV1Service) RegisterGateway(ctx context.Context, echoServer *echo.Ech
 			ctx := r.Context()
 
 			authHeader := r.Header.Get("Authorization")
-			result := authorizer.Authenticate(ctx, authHeader)
+			result, err := authorizer.Authenticate(ctx, authHeader)
+			if err != nil {
+				http.Error(w, `{"code": 14, "message": "authentication backend unavailable"}`, http.StatusServiceUnavailable)
+				return
+			}
 
 			// An unresolved path yields an empty procedure, which CheckAccess
 			// treats as protected: authenticated callers pass and anonymous ones

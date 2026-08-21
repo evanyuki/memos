@@ -4,6 +4,8 @@ import (
 	"sync"
 	"time"
 
+	"golang.org/x/sync/singleflight"
+
 	"github.com/usememos/memos/internal/profile"
 	"github.com/usememos/memos/internal/storage"
 	storepb "github.com/usememos/memos/proto/gen/store"
@@ -20,6 +22,7 @@ type Store struct {
 	refreshTokenMu sync.Mutex
 	patMu          sync.Mutex
 	memoViewMu     sync.Mutex
+	userLoadGroup  singleflight.Group
 
 	deploymentConfigMu sync.RWMutex
 	deploymentConfig   *deploymentConfiguration
@@ -37,6 +40,8 @@ type Store struct {
 	storageDriverMu         sync.Mutex
 	storageDriverGeneration uint64
 	storageDriverCache      map[storageDriverCacheKey]storage.Driver
+
+	databasePoolStatsStop chan struct{}
 }
 
 type deploymentConfiguration struct {
@@ -66,6 +71,10 @@ func New(driver Driver, profile *profile.Profile) *Store {
 			instanceSettings:  map[storepb.InstanceSettingKey]*storepb.InstanceSetting{},
 		},
 	}
+	if profile.Driver != "sqlite" {
+		store.databasePoolStatsStop = make(chan struct{})
+		go store.logDatabasePoolStats()
+	}
 
 	return store
 }
@@ -80,6 +89,9 @@ func (s *Store) GetDataDir() string {
 }
 
 func (s *Store) Close() error {
+	if s.databasePoolStatsStop != nil {
+		close(s.databasePoolStatsStop)
+	}
 	// Stop all cache cleanup goroutines
 	s.instanceSettingCache.Close()
 	s.userCache.Close()

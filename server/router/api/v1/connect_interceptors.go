@@ -222,7 +222,10 @@ func (in *AuthInterceptor) WrapUnary(next connect.UnaryFunc) connect.UnaryFunc {
 		header := req.Header()
 		authHeader := header.Get("Authorization")
 
-		result := in.authorizer.Authenticate(ctx, authHeader)
+		result, err := in.authorizer.Authenticate(ctx, authHeader)
+		if err != nil {
+			return nil, connect.NewError(connect.CodeUnavailable, pkgerrors.Wrap(err, "authentication backend unavailable"))
+		}
 		if err := in.authorizer.CheckAccess(ctx, req.Spec().Procedure, result); err != nil {
 			return nil, connect.NewError(connect.CodeUnauthenticated, err)
 		}

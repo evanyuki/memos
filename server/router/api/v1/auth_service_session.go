@@ -127,6 +127,9 @@ func (s *APIV1Service) RefreshToken(ctx context.Context, _ *v1pb.RefreshTokenReq
 	authenticator := auth.NewAuthenticator(s.Store, s.Secret)
 	user, oldTokenID, err := authenticator.AuthenticateByRefreshToken(ctx, refreshToken)
 	if err != nil {
+		if auth.IsAuthenticationStoreError(err) {
+			return nil, status.Errorf(codes.Unavailable, "authentication backend unavailable: %v", err)
+		}
 		return nil, status.Errorf(codes.Unauthenticated, "invalid refresh token: %v", err)
 	}
 

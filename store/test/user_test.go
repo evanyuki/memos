@@ -2,8 +2,11 @@ package test
 
 import (
 	"context"
+	"database/sql"
 	"fmt"
+	"sync"
 	"testing"
+	"time"
 
 	"github.com/stretchr/testify/require"
 	"golang.org/x/crypto/bcrypt"
@@ -17,6 +20,7 @@ func TestUserStore(t *testing.T) {
 	ts := NewTestingStore(ctx, t)
 	user, err := createTestingHostUser(ctx, ts)
 	require.NoError(t, err)
+	username := user.Username
 	users, err := ts.ListUsers(ctx, &store.FindUser{})
 	require.NoError(t, err)
 	require.Equal(t, 1, len(users))
@@ -37,6 +41,9 @@ func TestUserStore(t *testing.T) {
 	users, err = ts.ListUsers(ctx, &store.FindUser{})
 	require.NoError(t, err)
 	require.Equal(t, 0, len(users))
+	deletedUser, err := ts.GetUser(ctx, &store.FindUser{Username: &username})
+	require.NoError(t, err)
+	require.Nil(t, deletedUser)
 	ts.Close()
 }
 
@@ -92,6 +99,88 @@ func TestUserGetByID(t *testing.T) {
 	require.Nil(t, notFound)
 
 	ts.Close()
+}
+
+func TestConcurrentUserCacheMissesAreCoalesced(t *testing.T) {
+	t.Run("by ID", func(t *testing.T) {
+		testConcurrentUserCacheMissesAreCoalesced(t, "singleflight-id", func(userID int32, _ string) *store.FindUser {
+			return &store.FindUser{ID: &userID}
+		})
+	})
+	t.Run("by username", func(t *testing.T) {
+		testConcurrentUserCacheMissesAreCoalesced(t, "singleflight-username", func(_ int32, username string) *store.FindUser {
+			return &store.FindUser{Username: &username}
+		})
+	})
+}
+
+func testConcurrentUserCacheMissesAreCoalesced(t *testing.T, username string, findUser func(int32, string) *store.FindUser) {
+	ctx := context.Background()
+	ts := NewTestingStore(ctx, t)
+	defer ts.Close()
+
+	database := ts.GetDriver().GetDB()
+	database.SetMaxOpenConns(1)
+	database.SetMaxIdleConns(1)
+	userID := insertUserWithoutStoreCache(t, ctx, database, getDriverFromEnv(), username)
+
+	connection, err := database.Conn(ctx)
+	require.NoError(t, err)
+	waitCountBefore := database.Stats().WaitCount
+
+	const callers = 20
+	start := make(chan struct{})
+	errors := make(chan error, callers)
+	var waitGroup sync.WaitGroup
+	waitGroup.Add(callers)
+	for range callers {
+		go func() {
+			defer waitGroup.Done()
+			<-start
+			user, err := ts.GetUser(ctx, findUser(userID, username))
+			if err == nil && (user == nil || user.ID != userID) {
+				err = fmt.Errorf("unexpected user result: %+v", user)
+			}
+			errors <- err
+		}()
+	}
+	close(start)
+
+	require.Eventually(t, func() bool {
+		return database.Stats().WaitCount > waitCountBefore
+	}, 2*time.Second, 10*time.Millisecond)
+	require.NoError(t, connection.Close())
+	waitGroup.Wait()
+	close(errors)
+	for err := range errors {
+		require.NoError(t, err)
+	}
+
+	require.Equal(t, waitCountBefore+1, database.Stats().WaitCount)
+}
+
+func insertUserWithoutStoreCache(t *testing.T, ctx context.Context, database interface {
+	ExecContext(context.Context, string, ...any) (sql.Result, error)
+	QueryRowContext(context.Context, string, ...any) *sql.Row
+}, driver, username string) int32 {
+	t.Helper()
+
+	if driver == "postgres" {
+		var userID int32
+		err := database.QueryRowContext(ctx, `INSERT INTO "user" (username, password_hash, avatar_url) VALUES ($1, $2, $3) RETURNING id`, username, "hash", "").Scan(&userID)
+		require.NoError(t, err)
+		return userID
+	}
+
+	table := "user"
+	if driver == "mysql" {
+		table = "`user`"
+	}
+	result, err := database.ExecContext(ctx, fmt.Sprintf("INSERT INTO %s (username, password_hash, avatar_url) VALUES (?, ?, ?)", table), username, "hash", "")
+	require.NoError(t, err)
+	userID, err := result.LastInsertId()
+	require.NoError(t, err)
+	return int32(userID)
 }
 
 func TestUserGetByUsername(t *testing.T) {
@@ -222,6 +311,7 @@ func TestUserUpdateAllFields(t *testing.T) {
 
 	user, err := createTestingHostUser(ctx, ts)
 	require.NoError(t, err)
+	previousUsername := user.Username
 
 	// Update all fields
 	newUsername := "updated_username"
@@ -255,6 +345,12 @@ func TestUserUpdateAllFields(t *testing.T) {
 	fetched, err := ts.GetUser(ctx, &store.FindUser{ID: &user.ID})
 	require.NoError(t, err)
 	require.Equal(t, newUsername, fetched.Username)
+	previousUser, err := ts.GetUser(ctx, &store.FindUser{Username: &previousUsername})
+	require.NoError(t, err)
+	require.Nil(t, previousUser)
+	updatedByUsername, err := ts.GetUser(ctx, &store.FindUser{Username: &newUsername})
+	require.NoError(t, err)
+	require.Equal(t, user.ID, updatedByUsername.ID)
 
 	ts.Close()
 }

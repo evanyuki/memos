@@ -25,8 +25,12 @@ type Profile struct {
 	Data string
 	// DSN points to where memos stores its own data
 	DSN string
+	// DBMaxOpenConns limits the number of open connections for external databases.
+	DBMaxOpenConns int
+	// DBMaxIdleConns limits the number of idle connections for external databases.
+	DBMaxIdleConns int
 	// Driver is the database driver
-	// sqlite, mysql
+	// sqlite, mysql, postgres
 	Driver string
 	// Version is the current version of server
 	Version string
@@ -68,6 +72,16 @@ func checkDataDir(dataDir string) (string, error) {
 }
 
 func (p *Profile) Validate() error {
+	if p.DBMaxOpenConns < 0 {
+		return errors.New("db max open connections must not be negative")
+	}
+	if p.DBMaxIdleConns < 0 {
+		return errors.New("db max idle connections must not be negative")
+	}
+	if p.DBMaxOpenConns > 0 && p.DBMaxIdleConns > p.DBMaxOpenConns {
+		return errors.New("db max idle connections must not exceed max open connections")
+	}
+
 	// Set default data directory if not specified
 	if p.Data == "" {
 		if runtime.GOOS == "windows" {

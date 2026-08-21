@@ -72,7 +72,7 @@ func (a *Authenticator) AuthenticateByRefreshToken(ctx context.Context, refreshT
 	// Check token exists in database (revocation check)
 	token, err := a.store.GetUserRefreshTokenByID(ctx, userID, claims.TokenID)
 	if err != nil {
-		return nil, "", errors.Wrap(err, "failed to get refresh token")
+		return nil, "", newAuthenticationStoreError("failed to get refresh token", err)
 	}
 	if token == nil {
 		return nil, "", errors.New("refresh token revoked")
@@ -86,7 +86,7 @@ func (a *Authenticator) AuthenticateByRefreshToken(ctx context.Context, refreshT
 	// Get user
 	user, err := a.store.GetUser(ctx, &store.FindUser{ID: &userID})
 	if err != nil {
-		return nil, "", errors.Wrap(err, "failed to get user")
+		return nil, "", newAuthenticationStoreError("failed to get user", err)
 	}
 	if user == nil {
 		return nil, "", errors.New("user not found")
@@ -159,7 +159,7 @@ func (a *Authenticator) resolveBearer(ctx context.Context, token string) (*beare
 		if err == nil && claims != nil {
 			user, err := a.store.GetUser(ctx, &store.FindUser{ID: &claims.UserID})
 			if err != nil {
-				return nil, err
+				return nil, newAuthenticationStoreError("failed to resolve access token user", err)
 			}
 			if user != nil && user.RowStatus != store.Archived {
 				return &bearerAuth{user: user, claims: claims}, nil
@@ -209,17 +209,21 @@ func (a *Authenticator) AuthenticateToUser(ctx context.Context, authHeader, cook
 	return nil, nil
 }
 
-// Authenticate resolves a Bearer token (Access Token V2 or PAT) into an AuthResult,
-// returning nil when no valid credentials are present. Unlike AuthenticateToUser it
-// ignores the refresh cookie.
-func (a *Authenticator) Authenticate(ctx context.Context, authHeader string) *AuthResult {
+// Authenticate resolves a Bearer token (Access Token V2 or PAT) into an AuthResult.
+// It returns a nil result for invalid credentials and an error when the backing
+// authentication store is unavailable. Unlike AuthenticateToUser it ignores the
+// refresh cookie.
+func (a *Authenticator) Authenticate(ctx context.Context, authHeader string) (*AuthResult, error) {
 	token := ExtractBearerToken(authHeader)
 	bearer, err := a.resolveBearer(ctx, token)
-	if err != nil || bearer == nil {
-		return nil
+	if err != nil {
+		return nil, err
+	}
+	if bearer == nil {
+		return nil, nil
 	}
 	if bearer.pat != nil {
-		return &AuthResult{User: bearer.user, AccessToken: token}
+		return &AuthResult{User: bearer.user, AccessToken: token}, nil
 	}
-	return &AuthResult{Claims: bearer.claims, AccessToken: token}
+	return &AuthResult{Claims: bearer.claims, AccessToken: token}, nil
 }

@@ -1,6 +1,7 @@
 import "@github/relative-time-element";
 import { QueryClientProvider } from "@tanstack/react-query";
 import { ReactQueryDevtools } from "@tanstack/react-query-devtools";
+import { AlertCircle, RefreshCw } from "lucide-react";
 import React, { useEffect, useRef } from "react";
 import { createRoot } from "react-dom/client";
 import { Toaster } from "react-hot-toast";
@@ -8,6 +9,7 @@ import { RouterProvider } from "react-router-dom";
 import "./i18n";
 import "./index.css";
 import { ErrorBoundary } from "@/components/ErrorBoundary";
+import { Button } from "@/components/ui/button";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { refreshAccessToken } from "@/connect";
 import { AuthProvider, useAuth } from "@/contexts/AuthContext";
@@ -26,7 +28,7 @@ applyLocaleEarly();
 
 // Inner component that initializes contexts
 function AppInitializer({ children }: { children: React.ReactNode }) {
-  const { isIdentityInitialized, initialize: initAuth, currentUser } = useAuth();
+  const { isIdentityInitialized, initialize: initAuth, currentUser, initializationError } = useAuth();
   const { isProfileInitialized, initialize: initInstance } = useInstance();
   const initStartedRef = useRef(false);
 
@@ -48,6 +50,28 @@ function AppInitializer({ children }: { children: React.ReactNode }) {
 
   // Live refresh: listen for memo changes via SSE and invalidate caches.
   useLiveMemoRefresh();
+
+  if (initializationError) {
+    return (
+      <div className="flex min-h-screen items-center justify-center bg-background p-6">
+        <div className="w-full max-w-md space-y-4">
+          <div className="flex items-center gap-3 text-destructive">
+            <AlertCircle className="size-8" />
+            <h1 className="text-2xl font-bold">Unable to connect</h1>
+          </div>
+          <p className="text-foreground/70">The server is temporarily unavailable. Your login has been preserved.</p>
+          <details className="rounded-md bg-muted p-3 text-sm">
+            <summary className="cursor-pointer font-medium">Error details</summary>
+            <pre className="mt-2 whitespace-pre-wrap break-words text-xs text-foreground/60">{initializationError.message}</pre>
+          </details>
+          <Button className="w-full gap-2" onClick={() => void initAuth()}>
+            <RefreshCw className="size-4" />
+            Retry
+          </Button>
+        </div>
+      </div>
+    );
+  }
 
   // Route loading and feed requests only need the verified identity and the
   // instance profile. Display-sensitive settings continue in the background;

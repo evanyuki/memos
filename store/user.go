@@ -89,13 +89,17 @@ func userCacheKey(userID int32) string {
 	return strconv.Itoa(int(userID))
 }
 
+func userUsernameCacheKey(username string) string {
+	return "username:" + username
+}
+
 func (s *Store) CreateUser(ctx context.Context, create *User) (*User, error) {
 	user, err := s.driver.CreateUser(ctx, create)
 	if err != nil {
 		return nil, err
 	}
 
-	s.userCache.Set(ctx, userCacheKey(user.ID), user)
+	s.cacheUser(ctx, user)
 	return user, nil
 }
 
@@ -119,17 +123,31 @@ func (s *Store) CreateUserIfNoUsers(ctx context.Context, create *User) (*User, b
 	if err != nil {
 		return nil, false, err
 	}
-	s.userCache.Set(ctx, userCacheKey(user.ID), user)
+	s.cacheUser(ctx, user)
 	return user, true, nil
 }
 
 func (s *Store) UpdateUser(ctx context.Context, update *UpdateUser) (*User, error) {
+	var previousUsername string
+	if update.Username != nil {
+		currentUser, err := s.GetUser(ctx, &FindUser{ID: &update.ID})
+		if err != nil {
+			return nil, err
+		}
+		if currentUser != nil {
+			previousUsername = currentUser.Username
+		}
+	}
+
 	user, err := s.driver.UpdateUser(ctx, update)
 	if err != nil {
 		return nil, err
 	}
 
-	s.userCache.Set(ctx, userCacheKey(user.ID), user)
+	if previousUsername != "" && previousUsername != user.Username {
+		s.userCache.Delete(ctx, userUsernameCacheKey(previousUsername))
+	}
+	s.cacheUser(ctx, user)
 	return user, nil
 }
 
@@ -140,21 +158,50 @@ func (s *Store) ListUsers(ctx context.Context, find *FindUser) ([]*User, error) 
 	}
 
 	for _, user := range list {
-		s.userCache.Set(ctx, userCacheKey(user.ID), user)
+		s.cacheUser(ctx, user)
 	}
 	return list, nil
 }
 
 func (s *Store) GetUser(ctx context.Context, find *FindUser) (*User, error) {
 	if find.ID != nil {
-		if cache, ok := s.userCache.Get(ctx, userCacheKey(*find.ID)); ok {
-			user, ok := cache.(*User)
-			if ok {
+		userID := *find.ID
+		cacheKey := userCacheKey(userID)
+		if user, ok := s.getCachedUser(ctx, cacheKey); ok {
+			return user, nil
+		}
+
+		// A freshly started server can receive many authenticated requests before
+		// its user cache is warm. Coalesce those cache misses so one cold browser
+		// refresh performs one user query per process instead of one per request.
+		value, err, _ := s.userLoadGroup.Do(cacheKey, func() (any, error) {
+			if user, ok := s.getCachedUser(ctx, cacheKey); ok {
 				return user, nil
 			}
-		}
+			return s.loadUser(ctx, find)
+		})
+		return userFromLoadResult(value, err)
 	}
 
+	if find.Username != nil {
+		cacheKey := userUsernameCacheKey(*find.Username)
+		if user, ok := s.getCachedUser(ctx, cacheKey); ok {
+			return user, nil
+		}
+
+		value, err, _ := s.userLoadGroup.Do(cacheKey, func() (any, error) {
+			if user, ok := s.getCachedUser(ctx, cacheKey); ok {
+				return user, nil
+			}
+			return s.loadUser(ctx, find)
+		})
+		return userFromLoadResult(value, err)
+	}
+
+	return s.loadUser(ctx, find)
+}
+
+func (s *Store) loadUser(ctx context.Context, find *FindUser) (*User, error) {
 	list, err := s.ListUsers(ctx, find)
 	if err != nil {
 		return nil, err
@@ -164,11 +211,44 @@ func (s *Store) GetUser(ctx context.Context, find *FindUser) (*User, error) {
 	}
 
 	user := list[0]
+	s.cacheUser(ctx, user)
+	return user, nil
+}
+
+func (s *Store) cacheUser(ctx context.Context, user *User) {
 	s.userCache.Set(ctx, userCacheKey(user.ID), user)
+	s.userCache.Set(ctx, userUsernameCacheKey(user.Username), user)
+}
+
+func (s *Store) getCachedUser(ctx context.Context, cacheKey string) (*User, bool) {
+	cached, ok := s.userCache.Get(ctx, cacheKey)
+	if !ok {
+		return nil, false
+	}
+	user, ok := cached.(*User)
+	return user, ok
+}
+
+func userFromLoadResult(value any, err error) (*User, error) {
+	if err != nil {
+		return nil, err
+	}
+	if value == nil {
+		return nil, nil
+	}
+	user, ok := value.(*User)
+	if !ok {
+		return nil, errors.New("unexpected cached user type")
+	}
 	return user, nil
 }
 
 func (s *Store) DeleteUser(ctx context.Context, delete *DeleteUser) (*DeleteUserResult, error) {
+	user, err := s.GetUser(ctx, &FindUser{ID: &delete.ID})
+	if err != nil {
+		return nil, err
+	}
+
 	result, err := s.driver.DeleteUser(ctx, delete)
 	if err != nil {
 		return nil, err
@@ -176,6 +256,6 @@ func (s *Store) DeleteUser(ctx context.Context, delete *DeleteUser) (*DeleteUser
 	if result == nil {
 		return nil, errors.New("unexpected nil delete user result")
 	}
-	s.deleteUserCache(ctx, delete.ID, result)
+	s.deleteUserCache(ctx, user, delete.ID, result)
 	return result, nil
 }

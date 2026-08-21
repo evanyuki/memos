@@ -22,3 +22,31 @@ func TestAllowAnonymous(t *testing.T) {
 		})
 	}
 }
+
+func TestValidateDatabaseConnectionLimits(t *testing.T) {
+	tests := []struct {
+		name    string
+		profile *Profile
+	}{
+		{
+			name:    "negative max open connections",
+			profile: &Profile{DBMaxOpenConns: -1},
+		},
+		{
+			name:    "negative max idle connections",
+			profile: &Profile{DBMaxIdleConns: -1},
+		},
+		{
+			name:    "idle connections exceed open connections",
+			profile: &Profile{DBMaxOpenConns: 2, DBMaxIdleConns: 3},
+		},
+	}
+
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			if err := test.profile.Validate(); err == nil {
+				t.Fatal("Validate() error = nil, want connection limit validation error")
+			}
+		})
+	}
+}

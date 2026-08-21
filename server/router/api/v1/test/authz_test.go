@@ -33,7 +33,9 @@ func TestAuthorizerPrivateInstanceRegistration(t *testing.T) {
 	)
 
 	// Anonymous request with no Authorization header resolves to no identity.
-	require.Nil(t, authorizer.Authenticate(ctx, ""))
+	result, err := authorizer.Authenticate(ctx, "")
+	require.NoError(t, err)
+	require.Nil(t, result)
 
 	// Registration and other bootstrap methods are allowed; browsing is still gated.
 	require.NoError(t, authorizer.CheckAccess(ctx, createUser, nil))
@@ -43,7 +45,7 @@ func TestAuthorizerPrivateInstanceRegistration(t *testing.T) {
 
 	// Once a user exists, CreateUser remains reachable so UserService can enforce
 	// disallow_user_registration and disallow_password_auth.
-	_, err := ts.CreateHostUser(ctx, "host")
+	_, err = ts.CreateHostUser(ctx, "host")
 	require.NoError(t, err)
 	require.NoError(t, authorizer.CheckAccess(ctx, createUser, nil))
 	require.NoError(t, authorizer.CheckAccess(ctx, signIn, nil))
@@ -71,7 +73,8 @@ func TestAuthorizerAccessTokenAlwaysWorksOnPrivateInstance(t *testing.T) {
 	// InstanceURL empty => private instance; the PAT must still authenticate.
 	authorizer := apiv1.NewAuthorizer(ts.Store, ts.Secret, &profile.Profile{InstanceURL: ""})
 
-	result := authorizer.Authenticate(ctx, "Bearer "+token)
+	result, err := authorizer.Authenticate(ctx, "Bearer "+token)
+	require.NoError(t, err)
 	require.NotNil(t, result)
 	require.NotNil(t, result.User)
 	require.Equal(t, user.ID, result.User.ID)

@@ -43,7 +43,7 @@ func (s *Store) CreateUserWithIdentity(ctx context.Context, createUser *User, cr
 	if err != nil {
 		return nil, err
 	}
-	s.userCache.Set(ctx, userCacheKey(user.ID), user)
+	s.cacheUser(ctx, user)
 	return user, nil
 }
 

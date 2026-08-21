@@ -39,7 +39,7 @@ func NewAuthorizer(store *store.Store, secret string, profile *profile.Profile) 
 
 // Authenticate resolves the caller from the Authorization header, returning nil for
 // an anonymous request. It never enforces policy — pair it with CheckAccess.
-func (a *Authorizer) Authenticate(ctx context.Context, authHeader string) *auth.AuthResult {
+func (a *Authorizer) Authenticate(ctx context.Context, authHeader string) (*auth.AuthResult, error) {
 	return a.authenticator.Authenticate(ctx, authHeader)
 }
 

@@ -102,7 +102,8 @@ func TestAuthenticatorAccessTokenV2(t *testing.T) {
 		require.NoError(t, err)
 
 		authenticator := auth.NewAuthenticator(ts.Store, ts.Secret)
-		result := authenticator.Authenticate(ctx, "Bearer "+token)
+		result, err := authenticator.Authenticate(ctx, "Bearer "+token)
+		require.NoError(t, err)
 		assert.Nil(t, result)
 	})
 }

@@ -15,10 +15,14 @@ func TestAuthenticateNoCredentials(t *testing.T) {
 	a := &Authenticator{secret: "test-secret"} // nil store: these paths never reach it.
 
 	t.Run("Authenticate returns nil without an Authorization header", func(t *testing.T) {
-		assert.Nil(t, a.Authenticate(ctx, ""))
+		result, err := a.Authenticate(ctx, "")
+		assert.NoError(t, err)
+		assert.Nil(t, result)
 	})
 	t.Run("Authenticate returns nil for a malformed bearer token", func(t *testing.T) {
-		assert.Nil(t, a.Authenticate(ctx, "Bearer not-a-valid-jwt"))
+		result, err := a.Authenticate(ctx, "Bearer not-a-valid-jwt")
+		assert.NoError(t, err)
+		assert.Nil(t, result)
 	})
 
 	t.Run("AuthenticateToUser returns nil without any credentials", func(t *testing.T) {

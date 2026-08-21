@@ -36,8 +36,11 @@ func GetDeleteUserFailpoint(ctx context.Context) DeleteUserFailpoint {
 	return failpoint
 }
 
-func (s *Store) deleteUserCache(ctx context.Context, userID int32, result *DeleteUserResult) {
+func (s *Store) deleteUserCache(ctx context.Context, user *User, userID int32, result *DeleteUserResult) {
 	s.userCache.Delete(ctx, userCacheKey(userID))
+	if user != nil {
+		s.userCache.Delete(ctx, userUsernameCacheKey(user.Username))
+	}
 	if result == nil {
 		return
 	}
