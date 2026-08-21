@@ -163,6 +163,55 @@ func (s *Store) ListUsers(ctx context.Context, find *FindUser) ([]*User, error) 
 	return list, nil
 }
 
+// ListUsersByIDs returns users from the in-process cache and batch-loads only
+// cache misses. The result follows the first occurrence order of userIDs.
+func (s *Store) ListUsersByIDs(ctx context.Context, userIDs []int32) ([]*User, error) {
+	uniqueUserIDs := make([]int32, 0, len(userIDs))
+	seenUserIDs := make(map[int32]struct{}, len(userIDs))
+	usersByID := make(map[int32]*User, len(userIDs))
+	missingUserIDs := make([]int32, 0, len(userIDs))
+
+	for _, userID := range userIDs {
+		if _, ok := seenUserIDs[userID]; ok {
+			continue
+		}
+		seenUserIDs[userID] = struct{}{}
+		uniqueUserIDs = append(uniqueUserIDs, userID)
+		if user, ok := s.getCachedUser(ctx, userCacheKey(userID)); ok {
+			usersByID[userID] = user
+			continue
+		}
+		missingUserIDs = append(missingUserIDs, userID)
+	}
+
+	if len(missingUserIDs) == 1 {
+		userID := missingUserIDs[0]
+		user, err := s.GetUser(ctx, &FindUser{ID: &userID})
+		if err != nil {
+			return nil, err
+		}
+		if user != nil {
+			usersByID[user.ID] = user
+		}
+	} else if len(missingUserIDs) > 1 {
+		users, err := s.ListUsers(ctx, &FindUser{IDList: missingUserIDs})
+		if err != nil {
+			return nil, err
+		}
+		for _, user := range users {
+			usersByID[user.ID] = user
+		}
+	}
+
+	users := make([]*User, 0, len(usersByID))
+	for _, userID := range uniqueUserIDs {
+		if user := usersByID[userID]; user != nil {
+			users = append(users, user)
+		}
+	}
+	return users, nil
+}
+
 func (s *Store) GetUser(ctx context.Context, find *FindUser) (*User, error) {
 	if find.ID != nil {
 		userID := *find.ID

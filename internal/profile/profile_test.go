@@ -1,6 +1,9 @@
 package profile
 
-import "testing"
+import (
+	"testing"
+	"time"
+)
 
 func TestAllowAnonymous(t *testing.T) {
 	cases := []struct {
@@ -39,6 +42,10 @@ func TestValidateDatabaseConnectionLimits(t *testing.T) {
 		{
 			name:    "idle connections exceed open connections",
 			profile: &Profile{DBMaxOpenConns: 2, DBMaxIdleConns: 3},
+		},
+		{
+			name:    "negative connection max idle time",
+			profile: &Profile{DBConnMaxIdleTime: -time.Second},
 		},
 	}
 

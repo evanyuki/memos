@@ -9,6 +9,7 @@ import (
 	"os/signal"
 	"strings"
 	"syscall"
+	"time"
 
 	"github.com/spf13/cobra"
 	"github.com/spf13/viper"
@@ -35,16 +36,17 @@ var (
 		Short: `An open source, lightweight note-taking service. Easily capture and share your great thoughts.`,
 		Run: func(_ *cobra.Command, _ []string) {
 			instanceProfile := &profile.Profile{
-				Demo:           viper.GetBool("demo"),
-				Addr:           viper.GetString("addr"),
-				Port:           viper.GetInt("port"),
-				UNIXSock:       viper.GetString("unix-sock"),
-				Data:           viper.GetString("data"),
-				Driver:         viper.GetString("driver"),
-				DSN:            viper.GetString("dsn"),
-				DBMaxOpenConns: viper.GetInt("db-max-open-conns"),
-				DBMaxIdleConns: viper.GetInt("db-max-idle-conns"),
-				InstanceURL:    viper.GetString("instance-url"),
+				Demo:              viper.GetBool("demo"),
+				Addr:              viper.GetString("addr"),
+				Port:              viper.GetInt("port"),
+				UNIXSock:          viper.GetString("unix-sock"),
+				Data:              viper.GetString("data"),
+				Driver:            viper.GetString("driver"),
+				DSN:               viper.GetString("dsn"),
+				DBMaxOpenConns:    viper.GetInt("db-max-open-conns"),
+				DBMaxIdleConns:    viper.GetInt("db-max-idle-conns"),
+				DBConnMaxIdleTime: viper.GetDuration("db-conn-max-idle-time"),
+				InstanceURL:       viper.GetString("instance-url"),
 			}
 			instanceProfile.Version = version.GetCurrentVersion()
 			instanceProfile.Commit = version.Commit
@@ -125,6 +127,7 @@ func init() {
 	viper.SetDefault("port", 8081)
 	viper.SetDefault("db-max-open-conns", 10)
 	viper.SetDefault("db-max-idle-conns", 2)
+	viper.SetDefault("db-conn-max-idle-time", 5*time.Minute)
 
 	rootCmd.PersistentFlags().Bool("demo", false, "enable demo mode")
 	rootCmd.PersistentFlags().String("addr", "", "address of server")
@@ -135,6 +138,7 @@ func init() {
 	rootCmd.PersistentFlags().String("dsn", "", "database source name(aka. DSN)")
 	rootCmd.PersistentFlags().Int("db-max-open-conns", 10, "maximum number of open external database connections")
 	rootCmd.PersistentFlags().Int("db-max-idle-conns", 2, "maximum number of idle external database connections")
+	rootCmd.PersistentFlags().Duration("db-conn-max-idle-time", 5*time.Minute, "maximum time an external database connection may remain idle")
 	rootCmd.PersistentFlags().String("instance-url", "", "the url of your memos instance")
 	rootCmd.PersistentFlags().Bool("allow-private-webhooks", false, "allow webhook URLs to resolve to private/reserved IP addresses")
 	rootCmd.PersistentFlags().String("log-level", "info", "log verbosity level (debug, info, warn, error)")
@@ -164,6 +168,9 @@ func init() {
 		panic(err)
 	}
 	if err := viper.BindPFlag("db-max-idle-conns", rootCmd.PersistentFlags().Lookup("db-max-idle-conns")); err != nil {
+		panic(err)
+	}
+	if err := viper.BindPFlag("db-conn-max-idle-time", rootCmd.PersistentFlags().Lookup("db-conn-max-idle-time")); err != nil {
 		panic(err)
 	}
 	if err := viper.BindPFlag("instance-url", rootCmd.PersistentFlags().Lookup("instance-url")); err != nil {

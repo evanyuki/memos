@@ -1,6 +1,7 @@
 package db
 
 import (
+	"database/sql"
 	"time"
 
 	"github.com/pkg/errors"
@@ -42,10 +43,17 @@ func configureConnectionPool(driver store.Driver, profile *profile.Profile) {
 		return
 	}
 
-	database := driver.GetDB()
+	configureSQLConnectionPool(driver.GetDB(), profile)
+}
+
+func configureSQLConnectionPool(database *sql.DB, profile *profile.Profile) {
 	if profile.DBMaxOpenConns > 0 {
 		database.SetMaxOpenConns(profile.DBMaxOpenConns)
 	}
 	database.SetMaxIdleConns(profile.DBMaxIdleConns)
-	database.SetConnMaxIdleTime(5 * time.Minute)
+	maxIdleTime := profile.DBConnMaxIdleTime
+	if maxIdleTime == 0 {
+		maxIdleTime = 5 * time.Minute
+	}
+	database.SetConnMaxIdleTime(maxIdleTime)
 }

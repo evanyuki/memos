@@ -206,6 +206,25 @@ func TestUserGetByUsername(t *testing.T) {
 	ts.Close()
 }
 
+func TestListUsersByIDsUsesCache(t *testing.T) {
+	t.Parallel()
+	ctx := context.Background()
+	ts := NewTestingStore(ctx, t)
+	defer ts.Close()
+
+	first, err := createTestingHostUser(ctx, ts)
+	require.NoError(t, err)
+	second, err := createTestingUserWithRole(ctx, ts, "cached-user", store.RoleUser)
+	require.NoError(t, err)
+	require.NoError(t, ts.GetDriver().GetDB().Close())
+
+	users, err := ts.ListUsersByIDs(ctx, []int32{second.ID, first.ID, second.ID})
+	require.NoError(t, err)
+	require.Len(t, users, 2)
+	require.Equal(t, second.ID, users[0].ID)
+	require.Equal(t, first.ID, users[1].ID)
+}
+
 func TestUsernameEqualityIsCaseSensitive(t *testing.T) {
 	t.Parallel()
 	ctx := context.Background()

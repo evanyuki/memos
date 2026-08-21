@@ -7,6 +7,7 @@ import (
 	"path/filepath"
 	"runtime"
 	"strings"
+	"time"
 
 	"github.com/pkg/errors"
 )
@@ -29,6 +30,8 @@ type Profile struct {
 	DBMaxOpenConns int
 	// DBMaxIdleConns limits the number of idle connections for external databases.
 	DBMaxIdleConns int
+	// DBConnMaxIdleTime limits how long an external database connection may remain idle.
+	DBConnMaxIdleTime time.Duration
 	// Driver is the database driver
 	// sqlite, mysql, postgres
 	Driver string
@@ -80,6 +83,9 @@ func (p *Profile) Validate() error {
 	}
 	if p.DBMaxOpenConns > 0 && p.DBMaxIdleConns > p.DBMaxOpenConns {
 		return errors.New("db max idle connections must not exceed max open connections")
+	}
+	if p.DBConnMaxIdleTime < 0 {
+		return errors.New("db connection max idle time must not be negative")
 	}
 
 	// Set default data directory if not specified

@@ -28,7 +28,7 @@ func (s *APIV1Service) listUsersByID(ctx context.Context, userIDs []int32) (map[
 		uniqueUserIDs = append(uniqueUserIDs, userID)
 	}
 
-	users, err := s.Store.ListUsers(ctx, &store.FindUser{IDList: uniqueUserIDs})
+	users, err := s.Store.ListUsersByIDs(ctx, uniqueUserIDs)
 	if err != nil {
 		return nil, err
 	}
