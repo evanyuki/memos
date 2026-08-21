@@ -3,8 +3,9 @@ import { useState } from "react";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { useInstance } from "@/contexts/InstanceContext";
 import { cn } from "@/lib/utils";
+import { State } from "@/types/proto/api/v1/common_pb";
 import type { Memo } from "@/types/proto/api/v1/memo_service_pb";
-import { useReactionActions } from "./hooks";
+import { useCanReact, useReactionActions } from "./hooks";
 
 interface Props {
   memo: Memo;
@@ -16,6 +17,7 @@ const ReactionSelector = (props: Props) => {
   const { memo, className, onOpenChange } = props;
   const [open, setOpen] = useState(false);
   const { memoRelatedSetting } = useInstance();
+  const canReact = useCanReact(memo) && memo.state !== State.ARCHIVED;
 
   const handleOpenChange = (newOpen: boolean) => {
     setOpen(newOpen);
@@ -26,6 +28,10 @@ const ReactionSelector = (props: Props) => {
     memo,
     onComplete: () => handleOpenChange(false),
   });
+
+  if (!canReact) {
+    return null;
+  }
 
   return (
     <Popover open={open} onOpenChange={handleOpenChange}>
@@ -52,7 +58,7 @@ const ReactionSelector = (props: Props) => {
                 "inline-flex w-auto text-base cursor-pointer rounded px-1 text-muted-foreground hover:opacity-80 transition-colors",
                 hasReacted(reactionType) && "bg-secondary text-secondary-foreground",
               )}
-              onClick={() => handleReactionClick(reactionType)}
+              onClick={() => void handleReactionClick(reactionType)}
             >
               {reactionType}
             </button>

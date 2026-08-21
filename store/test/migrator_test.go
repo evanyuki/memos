@@ -275,6 +275,45 @@ func TestMigrationStorageSetting(t *testing.T) {
 	}
 }
 
+func TestMigrationGuestReaction(t *testing.T) {
+	ctx := context.Background()
+	driver := getDriverFromEnv()
+	dsn := getTestingProfileForDriver(t, driver).DSN
+	db, err := sql.Open(driver, dsn)
+	require.NoError(t, err)
+	_, err = db.ExecContext(ctx, legacySchemaFixture(driver))
+	require.NoError(t, err)
+
+	basicSetting, err := protojson.Marshal(&storepb.InstanceBasicSetting{SchemaVersion: "0.31.2"})
+	require.NoError(t, err)
+	insertSetting := "INSERT INTO system_setting (name, value, description) VALUES (?, ?, '')"
+	if driver == "postgres" {
+		insertSetting = "INSERT INTO system_setting (name, value, description) VALUES ($1, $2, '')"
+	}
+	_, err = db.ExecContext(ctx, insertSetting, "BASIC", string(basicSetting))
+	require.NoError(t, err)
+	_, err = db.ExecContext(ctx, "INSERT INTO reaction (creator_id, content_id, reaction_type) VALUES (1, 'memos/existing', '👍')")
+	require.NoError(t, err)
+	require.NoError(t, db.Close())
+
+	ts := NewTestingStoreWithDSN(ctx, t, driver, dsn)
+	require.NoError(t, ts.Migrate(ctx))
+	defer ts.Close()
+
+	contentID := "memos/existing"
+	reactions, err := ts.ListReactions(ctx, &store.FindReaction{ContentID: &contentID})
+	require.NoError(t, err)
+	require.Len(t, reactions, 1)
+	require.Equal(t, int32(1), reactions[0].CreatorID)
+
+	visitorID := "11111111-1111-4111-8111-111111111111"
+	_, err = ts.UpsertReaction(ctx, &store.Reaction{VisitorID: visitorID, ContentID: contentID, ReactionType: "❤️"})
+	require.NoError(t, err)
+	reactions, err = ts.ListReactions(ctx, &store.FindReaction{VisitorID: &visitorID})
+	require.NoError(t, err)
+	require.Len(t, reactions, 1)
+}
+
 func insertStorageMigrationAttachments(ctx context.Context, t *testing.T, db *sql.DB, driver string) {
 	t.Helper()
 	legacyPayload, err := protojson.Marshal(&storepb.AttachmentPayload{
@@ -584,6 +623,14 @@ func TestMigrationCopiesInstanceTagsToUserSettings(t *testing.T) {
 			storage_type TEXT NOT NULL DEFAULT '',
 			payload TEXT NOT NULL DEFAULT '{}'
 		);
+		CREATE TABLE reaction (
+			id INTEGER PRIMARY KEY AUTOINCREMENT,
+			created_ts BIGINT NOT NULL DEFAULT (strftime('%s', 'now')),
+			creator_id INTEGER NOT NULL,
+			content_id TEXT NOT NULL,
+			reaction_type TEXT NOT NULL,
+			UNIQUE(creator_id, content_id, reaction_type)
+		);
 	`)
 	require.NoError(t, err)
 
@@ -744,6 +791,14 @@ func legacySchemaFixture(driver string) string {
 				reference TEXT NOT NULL,
 				payload TEXT NOT NULL
 			);
+			CREATE TABLE ` + "`reaction`" + ` (
+				id INT NOT NULL AUTO_INCREMENT PRIMARY KEY,
+				created_ts TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+				creator_id INT NOT NULL,
+				content_id VARCHAR(256) NOT NULL,
+				reaction_type VARCHAR(256) NOT NULL,
+				UNIQUE(creator_id, content_id, reaction_type)
+			);
 		`
 	case "postgres":
 		return `
@@ -786,6 +841,14 @@ func legacySchemaFixture(driver string) string {
 				storage_type TEXT NOT NULL DEFAULT '',
 				reference TEXT NOT NULL DEFAULT '',
 				payload TEXT NOT NULL DEFAULT '{}'
+			);
+			CREATE TABLE reaction (
+				id SERIAL PRIMARY KEY,
+				created_ts BIGINT NOT NULL DEFAULT EXTRACT(EPOCH FROM NOW()),
+				creator_id INTEGER NOT NULL,
+				content_id TEXT NOT NULL,
+				reaction_type TEXT NOT NULL,
+				UNIQUE(creator_id, content_id, reaction_type)
 			);
 		`
 	case "sqlite":
@@ -830,6 +893,14 @@ func legacySchemaFixture(driver string) string {
 				storage_type TEXT NOT NULL DEFAULT '',
 				reference TEXT NOT NULL DEFAULT '',
 				payload TEXT NOT NULL DEFAULT '{}'
+			);
+			CREATE TABLE reaction (
+				id INTEGER PRIMARY KEY AUTOINCREMENT,
+				created_ts BIGINT NOT NULL DEFAULT (strftime('%s', 'now')),
+				creator_id INTEGER NOT NULL,
+				content_id TEXT NOT NULL,
+				reaction_type TEXT NOT NULL,
+				UNIQUE(creator_id, content_id, reaction_type)
 			);
 		`
 	default:

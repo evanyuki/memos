@@ -8,8 +8,14 @@ import (
 )
 
 func (d *DB) UpsertReaction(ctx context.Context, upsert *store.Reaction) (*store.Reaction, error) {
-	fields := []string{"creator_id", "content_id", "reaction_type"}
-	args := []interface{}{upsert.CreatorID, upsert.ContentID, upsert.ReactionType}
+	fields := []string{"creator_id", "visitor_id", "content_id", "reaction_type"}
+	var creatorID, visitorID any
+	if upsert.CreatorID != 0 {
+		creatorID = upsert.CreatorID
+	} else {
+		visitorID = upsert.VisitorID
+	}
+	args := []interface{}{creatorID, visitorID, upsert.ContentID, upsert.ReactionType}
 	stmt := "INSERT INTO reaction (" + strings.Join(fields, ", ") + ") VALUES (" + placeholders(len(args)) + ") RETURNING id, created_ts"
 	if err := d.db.QueryRowContext(ctx, stmt, args...).Scan(
 		&upsert.ID,
@@ -31,6 +37,9 @@ func (d *DB) ListReactions(ctx context.Context, find *store.FindReaction) ([]*st
 	if find.CreatorID != nil {
 		where, args = append(where, "creator_id = "+placeholder(len(args)+1)), append(args, *find.CreatorID)
 	}
+	if find.VisitorID != nil {
+		where, args = append(where, "visitor_id = "+placeholder(len(args)+1)), append(args, *find.VisitorID)
+	}
 	if find.ContentID != nil {
 		where, args = append(where, "content_id = "+placeholder(len(args)+1)), append(args, *find.ContentID)
 	}
@@ -47,7 +56,8 @@ func (d *DB) ListReactions(ctx context.Context, find *store.FindReaction) ([]*st
 		SELECT
 			id,
 			created_ts,
-			creator_id,
+			COALESCE(creator_id, 0),
+			COALESCE(visitor_id, ''),
 			content_id,
 			reaction_type
 		FROM reaction
@@ -67,6 +77,7 @@ func (d *DB) ListReactions(ctx context.Context, find *store.FindReaction) ([]*st
 			&reaction.ID,
 			&reaction.CreatedTs,
 			&reaction.CreatorID,
+			&reaction.VisitorID,
 			&reaction.ContentID,
 			&reaction.ReactionType,
 		); err != nil {

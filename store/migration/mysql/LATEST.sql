@@ -91,10 +91,13 @@ CREATE TABLE `inbox` (
 CREATE TABLE `reaction` (
   `id` INT NOT NULL AUTO_INCREMENT PRIMARY KEY,
   `created_ts` TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
-  `creator_id` INT NOT NULL,
+  `creator_id` INT,
+  `visitor_id` VARCHAR(64),
   `content_id` VARCHAR(256) NOT NULL,
   `reaction_type` VARCHAR(256) NOT NULL,
-  UNIQUE(`creator_id`,`content_id`,`reaction_type`)  
+  CHECK ((`creator_id` IS NULL) <> (`visitor_id` IS NULL)),
+  UNIQUE(`creator_id`,`content_id`,`reaction_type`),
+  UNIQUE(`visitor_id`,`content_id`,`reaction_type`)
 );
 
 -- memo_share

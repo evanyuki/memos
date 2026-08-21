@@ -8,6 +8,8 @@ type Reaction struct {
 	ID        int32
 	CreatedTs int64
 	CreatorID int32
+	// VisitorID identifies an anonymous browser. It is never exposed through the API.
+	VisitorID string
 	// ContentID is the id of the content that the reaction is for.
 	ContentID    string
 	ReactionType string
@@ -16,6 +18,7 @@ type Reaction struct {
 type FindReaction struct {
 	ID            *int32
 	CreatorID     *int32
+	VisitorID     *string
 	ContentID     *string
 	ContentIDList []string
 }

@@ -11,6 +11,7 @@ import { MemoService } from "./types/proto/api/v1/memo_service_pb";
 import { MemoViewService } from "./types/proto/api/v1/memo_view_service_pb";
 import { UserService } from "./types/proto/api/v1/user_service_pb";
 import { redirectOnAuthFailure } from "./utils/auth-redirect";
+import { getVisitorID } from "./utils/visitor-id";
 
 interface RequestWithHeader {
   header: Headers;
@@ -22,6 +23,7 @@ interface RequestWithHeader {
 
 const RETRY_HEADER = "X-Retry";
 const RETRY_HEADER_VALUE = "true";
+const VISITOR_ID_HEADER = "X-Memos-Visitor-ID";
 
 // ============================================================================
 // Token Refresh State Management
@@ -155,6 +157,10 @@ export async function getRequestToken(): Promise<string | null> {
 
 const authInterceptor: Interceptor = (next) => async (req) => {
   const isRetryAttempt = req.header.get(RETRY_HEADER) === RETRY_HEADER_VALUE;
+  const visitorID = getVisitorID();
+  if (visitorID) {
+    req.header.set(VISITOR_ID_HEADER, visitorID);
+  }
   const token = await getRequestToken();
   setAuthorizationHeader(req, token);
 

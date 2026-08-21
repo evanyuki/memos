@@ -51,6 +51,9 @@ func (*MetadataInterceptor) WrapUnary(next connect.UnaryFunc) connect.UnaryFunc 
 		if forwarded := header.Get("Forwarded"); forwarded != "" {
 			md.Set("forwarded", forwarded)
 		}
+		if visitorID := header.Get(visitorIDHeader); visitorID != "" {
+			md.Set(visitorIDMetadataKey, visitorID)
+		}
 		// Forward Cookie header for authentication methods that need it (e.g., RefreshToken)
 		if cookie := header.Get("Cookie"); cookie != "" {
 			md.Set("cookie", cookie)

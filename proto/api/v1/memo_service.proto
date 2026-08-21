@@ -96,8 +96,9 @@ service MemoService {
     option (google.api.http) = {get: "/api/v1/{name=memos/*}/reactions"};
     option (google.api.method_signature) = "name";
   }
-  // UpsertMemoReaction adds or updates the authenticated user's reaction on a
-  // memo. The reaction's content_id is the memo's resource name (memos/{memo}).
+  // UpsertMemoReaction adds or updates the current user's or anonymous visitor's
+  // reaction on a memo. Anonymous visitors may react only to public memos.
+  // The reaction's content_id is the memo's resource name (memos/{memo}).
   rpc UpsertMemoReaction(UpsertMemoReactionRequest) returns (Reaction) {
     option (google.api.http) = {
       post: "/api/v1/{name=memos/*}/reactions"
@@ -173,7 +174,7 @@ message Reaction {
     (google.api.field_behavior) = IDENTIFIER
   ];
 
-  // The resource name of the creator.
+  // The resource name of the creator. Empty for anonymous visitors.
   // Format: users/{user}
   string creator = 2 [
     (google.api.field_behavior) = OUTPUT_ONLY,
@@ -193,6 +194,9 @@ message Reaction {
 
   // Output only. The creation timestamp.
   google.protobuf.Timestamp create_time = 5 [(google.api.field_behavior) = OUTPUT_ONLY];
+
+  // Output only. Whether the reaction belongs to the current user or anonymous visitor.
+  bool is_current_user = 6 [(google.api.field_behavior) = OUTPUT_ONLY];
 }
 
 message Memo {

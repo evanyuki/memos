@@ -3,6 +3,7 @@ package v1
 import (
 	"context"
 	"net/http"
+	"strings"
 
 	"connectrpc.com/connect"
 	"github.com/grpc-ecosystem/grpc-gateway/v2/runtime"
@@ -134,6 +135,12 @@ func (s *APIV1Service) RegisterGateway(ctx context.Context, echoServer *echo.Ech
 	// Create gRPC-Gateway mux with auth middleware.
 	gwMux := runtime.NewServeMux(
 		runtime.WithMarshalerOption(runtime.MIMEWildcard, newGatewayMarshaler()),
+		runtime.WithIncomingHeaderMatcher(func(key string) (string, bool) {
+			if strings.EqualFold(key, visitorIDHeader) {
+				return visitorIDMetadataKey, true
+			}
+			return runtime.DefaultHeaderMatcher(key)
+		}),
 		runtime.WithMiddlewares(gatewayAuthMiddleware),
 	)
 	if err := v1pb.RegisterInstanceServiceHandlerServer(ctx, gwMux, s); err != nil {

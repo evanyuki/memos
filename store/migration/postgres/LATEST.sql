@@ -91,10 +91,13 @@ CREATE TABLE inbox (
 CREATE TABLE reaction (
   id SERIAL PRIMARY KEY,
   created_ts BIGINT NOT NULL DEFAULT EXTRACT(EPOCH FROM NOW()),
-  creator_id INTEGER NOT NULL,
+  creator_id INTEGER,
+  visitor_id TEXT,
   content_id TEXT NOT NULL,
   reaction_type TEXT NOT NULL,
-  UNIQUE(creator_id, content_id, reaction_type)
+  CHECK ((creator_id IS NULL) <> (visitor_id IS NULL)),
+  UNIQUE(creator_id, content_id, reaction_type),
+  UNIQUE(visitor_id, content_id, reaction_type)
 );
 
 -- memo_share

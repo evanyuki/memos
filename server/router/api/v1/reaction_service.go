@@ -26,18 +26,16 @@ func (s *APIV1Service) ListMemoReactions(ctx context.Context, request *v1pb.List
 		return nil, status.Errorf(codes.NotFound, "memo not found")
 	}
 
-	// Check memo visibility.
-	if memo.Visibility != store.Public {
-		user, err := s.fetchCurrentUser(ctx)
-		if err != nil {
-			return nil, status.Errorf(codes.Internal, "failed to get user")
+	user, err := s.fetchCurrentUser(ctx)
+	if err != nil {
+		return nil, status.Errorf(codes.Internal, "failed to get user")
+	}
+	if user == nil {
+		if err := s.checkMemoAndParentReadAccess(ctx, memo); err != nil {
+			return nil, err
 		}
-		if user == nil {
-			return nil, status.Errorf(codes.Unauthenticated, "user not authenticated")
-		}
-		if memo.Visibility == store.Private && memo.CreatorID != user.ID && !isSuperUser(user) {
-			return nil, status.Errorf(codes.PermissionDenied, "permission denied")
-		}
+	} else if memo.Visibility == store.Private && memo.CreatorID != user.ID && !isSuperUser(user) {
+		return nil, status.Errorf(codes.PermissionDenied, "permission denied")
 	}
 
 	reactions, err := s.Store.ListReactions(ctx, &store.FindReaction{
@@ -58,12 +56,16 @@ func (s *APIV1Service) ListMemoReactions(ctx context.Context, request *v1pb.List
 }
 
 func (s *APIV1Service) UpsertMemoReaction(ctx context.Context, request *v1pb.UpsertMemoReactionRequest) (*v1pb.Reaction, error) {
+	if request.Reaction == nil {
+		return nil, status.Errorf(codes.InvalidArgument, "reaction is required")
+	}
 	user, err := s.fetchCurrentUser(ctx)
 	if err != nil {
 		return nil, status.Errorf(codes.Internal, "failed to get current user")
 	}
-	if user == nil {
-		return nil, status.Errorf(codes.Unauthenticated, "user not authenticated")
+	visitorID := visitorIDFromContext(ctx)
+	if user == nil && visitorID == "" {
+		return nil, status.Errorf(codes.Unauthenticated, "visitor identity is required")
 	}
 
 	// Extract memo UID and check visibility before allowing reaction.
@@ -79,13 +81,22 @@ func (s *APIV1Service) UpsertMemoReaction(ctx context.Context, request *v1pb.Ups
 		return nil, status.Errorf(codes.NotFound, "memo not found")
 	}
 
-	// Check memo visibility.
-	if memo.Visibility == store.Private && memo.CreatorID != user.ID && !isSuperUser(user) {
+	if user == nil {
+		if err := s.checkMemoAndParentReadAccess(ctx, memo); err != nil {
+			return nil, err
+		}
+	} else if memo.Visibility == store.Private && memo.CreatorID != user.ID && !isSuperUser(user) {
 		return nil, status.Errorf(codes.PermissionDenied, "permission denied")
 	}
 
+	creatorID := int32(0)
+	if user != nil {
+		creatorID = user.ID
+		visitorID = ""
+	}
 	reaction, err := s.Store.UpsertReaction(ctx, &store.Reaction{
-		CreatorID:    user.ID,
+		CreatorID:    creatorID,
+		VisitorID:    visitorID,
 		ContentID:    request.Reaction.ContentId,
 		ReactionType: request.Reaction.ReactionType,
 	})
@@ -113,8 +124,9 @@ func (s *APIV1Service) DeleteMemoReaction(ctx context.Context, request *v1pb.Del
 	if err != nil {
 		return nil, status.Errorf(codes.Internal, "failed to get current user: %v", err)
 	}
-	if user == nil {
-		return nil, status.Errorf(codes.Unauthenticated, "user not authenticated")
+	visitorID := visitorIDFromContext(ctx)
+	if user == nil && visitorID == "" {
+		return nil, status.Errorf(codes.Unauthenticated, "visitor identity is required")
 	}
 
 	_, reactionID, err := ExtractMemoReactionIDFromName(request.Name)
@@ -134,7 +146,11 @@ func (s *APIV1Service) DeleteMemoReaction(ctx context.Context, request *v1pb.Del
 		return nil, status.Errorf(codes.PermissionDenied, "permission denied")
 	}
 
-	if reaction.CreatorID != user.ID && !isSuperUser(user) {
+	if user == nil {
+		if reaction.VisitorID == "" || reaction.VisitorID != visitorID {
+			return nil, status.Errorf(codes.PermissionDenied, "permission denied")
+		}
+	} else if reaction.CreatorID != user.ID && !isSuperUser(user) {
 		return nil, status.Errorf(codes.PermissionDenied, "permission denied")
 	}
 
@@ -164,11 +180,15 @@ func (s *APIV1Service) DeleteMemoReaction(ctx context.Context, request *v1pb.Del
 }
 
 func (s *APIV1Service) convertReactionFromStore(ctx context.Context, reaction *store.Reaction) (*v1pb.Reaction, error) {
-	creatorsByID, err := s.listUsersByIDWithExisting(ctx, []int32{reaction.CreatorID}, nil)
+	creatorIDs := []int32{}
+	if reaction.CreatorID != 0 {
+		creatorIDs = append(creatorIDs, reaction.CreatorID)
+	}
+	creatorsByID, err := s.listUsersByIDWithExisting(ctx, creatorIDs, nil)
 	if err != nil {
 		return nil, status.Errorf(codes.Internal, "failed to get reaction creator")
 	}
-	reactionMessage, err := convertReactionFromStoreWithCreators(reaction, creatorsByID)
+	reactionMessage, err := convertReactionFromStoreWithCreators(ctx, reaction, creatorsByID)
 	if err != nil {
 		slog.Warn("Failed to convert reaction with missing creator",
 			slog.Int64("reaction_id", int64(reaction.ID)),

@@ -12,6 +12,7 @@ import (
 
 	v1pb "github.com/usememos/memos/proto/gen/api/v1"
 	storepb "github.com/usememos/memos/proto/gen/store"
+	"github.com/usememos/memos/server/auth"
 	"github.com/usememos/memos/store"
 )
 
@@ -126,7 +127,9 @@ func (s *APIV1Service) convertReactionsFromStoreWithCreators(ctx context.Context
 
 	creatorIDs := make([]int32, 0, len(reactions))
 	for _, reaction := range reactions {
-		creatorIDs = append(creatorIDs, reaction.CreatorID)
+		if reaction.CreatorID != 0 {
+			creatorIDs = append(creatorIDs, reaction.CreatorID)
+		}
 	}
 	creatorsByID, err := s.listUsersByIDWithExisting(ctx, creatorIDs, creatorMap)
 	if err != nil {
@@ -135,7 +138,7 @@ func (s *APIV1Service) convertReactionsFromStoreWithCreators(ctx context.Context
 
 	reactionMessages := make([]*v1pb.Reaction, 0, len(reactions))
 	for _, reaction := range reactions {
-		reactionMessage, err := convertReactionFromStoreWithCreators(reaction, creatorsByID)
+		reactionMessage, err := convertReactionFromStoreWithCreators(ctx, reaction, creatorsByID)
 		if err != nil {
 			if stderrors.Is(err, errReactionCreatorNotFound) {
 				slog.Warn("Skipping reaction with missing creator",
@@ -152,19 +155,29 @@ func (s *APIV1Service) convertReactionsFromStoreWithCreators(ctx context.Context
 	return reactionMessages, nil
 }
 
-func convertReactionFromStoreWithCreators(reaction *store.Reaction, creatorsByID map[int32]*store.User) (*v1pb.Reaction, error) {
-	creator := creatorsByID[reaction.CreatorID]
-	if creator == nil {
-		return nil, errReactionCreatorNotFound
+func convertReactionFromStoreWithCreators(ctx context.Context, reaction *store.Reaction, creatorsByID map[int32]*store.User) (*v1pb.Reaction, error) {
+	creatorName := ""
+	if reaction.CreatorID != 0 {
+		creator := creatorsByID[reaction.CreatorID]
+		if creator == nil {
+			return nil, errReactionCreatorNotFound
+		}
+		creatorName = BuildUserName(creator.Username)
 	}
 
+	currentUserID := auth.GetUserID(ctx)
+	isCurrentUser := reaction.CreatorID != 0 && currentUserID != 0 && reaction.CreatorID == currentUserID
+	if currentUserID == 0 && reaction.VisitorID != "" {
+		isCurrentUser = reaction.VisitorID == visitorIDFromContext(ctx)
+	}
 	reactionUID := fmt.Sprintf("%d", reaction.ID)
 	return &v1pb.Reaction{
-		Name:         fmt.Sprintf("%s/%s%s", reaction.ContentID, ReactionNamePrefix, reactionUID),
-		Creator:      BuildUserName(creator.Username),
-		ContentId:    reaction.ContentID,
-		ReactionType: reaction.ReactionType,
-		CreateTime:   timestamppb.New(time.Unix(reaction.CreatedTs, 0)),
+		Name:          fmt.Sprintf("%s/%s%s", reaction.ContentID, ReactionNamePrefix, reactionUID),
+		Creator:       creatorName,
+		ContentId:     reaction.ContentID,
+		ReactionType:  reaction.ReactionType,
+		CreateTime:    timestamppb.New(time.Unix(reaction.CreatedTs, 0)),
+		IsCurrentUser: isCurrentUser,
 	}, nil
 }
 

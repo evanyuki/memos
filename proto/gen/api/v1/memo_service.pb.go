@@ -136,7 +136,7 @@ type Reaction struct {
 	// The resource name of the reaction.
 	// Format: memos/{memo}/reactions/{reaction}
 	Name string `protobuf:"bytes,1,opt,name=name,proto3" json:"name,omitempty"`
-	// The resource name of the creator.
+	// The resource name of the creator. Empty for anonymous visitors.
 	// Format: users/{user}
 	Creator string `protobuf:"bytes,2,opt,name=creator,proto3" json:"creator,omitempty"`
 	// The resource name of the content.
@@ -146,7 +146,9 @@ type Reaction struct {
 	// Required. The type of reaction (e.g., "👍", "❤️", "😄").
 	ReactionType string `protobuf:"bytes,4,opt,name=reaction_type,json=reactionType,proto3" json:"reaction_type,omitempty"`
 	// Output only. The creation timestamp.
-	CreateTime    *timestamppb.Timestamp `protobuf:"bytes,5,opt,name=create_time,json=createTime,proto3" json:"create_time,omitempty"`
+	CreateTime *timestamppb.Timestamp `protobuf:"bytes,5,opt,name=create_time,json=createTime,proto3" json:"create_time,omitempty"`
+	// Output only. Whether the reaction belongs to the current user or anonymous visitor.
+	IsCurrentUser bool `protobuf:"varint,6,opt,name=is_current_user,json=isCurrentUser,proto3" json:"is_current_user,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -214,6 +216,13 @@ func (x *Reaction) GetCreateTime() *timestamppb.Timestamp {
 		return x.CreateTime
 	}
 	return nil
+}
+
+func (x *Reaction) GetIsCurrentUser() bool {
+	if x != nil {
+		return x.IsCurrentUser
+	}
+	return false
 }
 
 type Memo struct {
@@ -2316,7 +2325,7 @@ var File_api_v1_memo_service_proto protoreflect.FileDescriptor
 
 const file_api_v1_memo_service_proto_rawDesc = "" +
 	"\n" +
-	"\x19api/v1/memo_service.proto\x12\fmemos.api.v1\x1a\x1fapi/v1/attachment_service.proto\x1a\x13api/v1/common.proto\x1a\x1cgoogle/api/annotations.proto\x1a\x17google/api/client.proto\x1a\x1fgoogle/api/field_behavior.proto\x1a\x19google/api/resource.proto\x1a\x1bgoogle/protobuf/empty.proto\x1a google/protobuf/field_mask.proto\x1a\x1fgoogle/protobuf/timestamp.proto\"\xdb\x02\n" +
+	"\x19api/v1/memo_service.proto\x12\fmemos.api.v1\x1a\x1fapi/v1/attachment_service.proto\x1a\x13api/v1/common.proto\x1a\x1cgoogle/api/annotations.proto\x1a\x17google/api/client.proto\x1a\x1fgoogle/api/field_behavior.proto\x1a\x19google/api/resource.proto\x1a\x1bgoogle/protobuf/empty.proto\x1a google/protobuf/field_mask.proto\x1a\x1fgoogle/protobuf/timestamp.proto\"\x88\x03\n" +
 	"\bReaction\x12\x1a\n" +
 	"\x04name\x18\x01 \x01(\tB\x06\xe0A\x03\xe0A\bR\x04name\x123\n" +
 	"\acreator\x18\x02 \x01(\tB\x19\xe0A\x03\xfaA\x13\n" +
@@ -2326,7 +2335,8 @@ const file_api_v1_memo_service_proto_rawDesc = "" +
 	"\x11memos.api.v1/MemoR\tcontentId\x12(\n" +
 	"\rreaction_type\x18\x04 \x01(\tB\x03\xe0A\x02R\freactionType\x12@\n" +
 	"\vcreate_time\x18\x05 \x01(\v2\x1a.google.protobuf.TimestampB\x03\xe0A\x03R\n" +
-	"createTime:X\xeaAU\n" +
+	"createTime\x12+\n" +
+	"\x0fis_current_user\x18\x06 \x01(\bB\x03\xe0A\x03R\risCurrentUser:X\xeaAU\n" +
 	"\x15memos.api.v1/Reaction\x12!memos/{memo}/reactions/{reaction}\x1a\x04name*\treactions2\breaction\"\xbe\b\n" +
 	"\x04Memo\x12\x17\n" +
 	"\x04name\x18\x01 \x01(\tB\x03\xe0A\bR\x04name\x12.\n" +

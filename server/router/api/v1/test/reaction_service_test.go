@@ -5,10 +5,15 @@ import (
 	"testing"
 
 	"github.com/stretchr/testify/require"
+	"google.golang.org/grpc/metadata"
 
 	apiv1 "github.com/usememos/memos/proto/gen/api/v1"
 	"github.com/usememos/memos/store"
 )
+
+func createVisitorContext(ctx context.Context, visitorID string) context.Context {
+	return metadata.NewIncomingContext(ctx, metadata.Pairs("x-memos-visitor-id", visitorID))
+}
 
 func TestDeleteMemoReaction(t *testing.T) {
 	ctx := context.Background()
@@ -43,6 +48,7 @@ func TestDeleteMemoReaction(t *testing.T) {
 		require.NoError(t, err)
 		require.NotNil(t, reaction)
 		require.Equal(t, "users/user", reaction.Creator)
+		require.True(t, reaction.IsCurrentUser)
 
 		// Delete reaction - should succeed
 		_, err = ts.Service.DeleteMemoReaction(userCtx, &apiv1.DeleteMemoReactionRequest{
@@ -171,7 +177,7 @@ func TestDeleteMemoReaction(t *testing.T) {
 			Name: reaction.Name,
 		})
 		require.Error(t, err)
-		require.Contains(t, err.Error(), "not authenticated")
+		require.Contains(t, err.Error(), "visitor identity")
 	})
 
 	t.Run("DeleteMemoReaction not found returns permission denied", func(t *testing.T) {
@@ -193,6 +199,61 @@ func TestDeleteMemoReaction(t *testing.T) {
 		require.Contains(t, err.Error(), "permission denied")
 		require.NotContains(t, err.Error(), "not found")
 	})
+}
+
+func TestAnonymousMemoReaction(t *testing.T) {
+	ctx := context.Background()
+	ts := NewTestService(t)
+	defer ts.Cleanup()
+
+	owner, err := ts.CreateRegularUser(ctx, "owner")
+	require.NoError(t, err)
+	ownerCtx := ts.CreateUserContext(ctx, owner.ID)
+	publicMemo, err := ts.Service.CreateMemo(ownerCtx, &apiv1.CreateMemoRequest{
+		Memo: &apiv1.Memo{Content: "public memo", Visibility: apiv1.Visibility_PUBLIC},
+	})
+	require.NoError(t, err)
+	protectedMemo, err := ts.Service.CreateMemo(ownerCtx, &apiv1.CreateMemoRequest{
+		Memo: &apiv1.Memo{Content: "protected memo", Visibility: apiv1.Visibility_PROTECTED},
+	})
+	require.NoError(t, err)
+
+	visitorCtx := createVisitorContext(ctx, "11111111-1111-4111-8111-111111111111")
+	otherVisitorCtx := createVisitorContext(ctx, "22222222-2222-4222-8222-222222222222")
+	reaction, err := ts.Service.UpsertMemoReaction(visitorCtx, &apiv1.UpsertMemoReactionRequest{
+		Name: publicMemo.Name,
+		Reaction: &apiv1.Reaction{
+			ContentId:    publicMemo.Name,
+			ReactionType: "👍",
+		},
+	})
+	require.NoError(t, err)
+	require.Empty(t, reaction.Creator)
+	require.True(t, reaction.IsCurrentUser)
+	refreshedMemo, err := ts.Service.GetMemo(visitorCtx, &apiv1.GetMemoRequest{Name: publicMemo.Name})
+	require.NoError(t, err)
+	require.Len(t, refreshedMemo.Reactions, 1)
+	require.True(t, refreshedMemo.Reactions[0].IsCurrentUser)
+
+	response, err := ts.Service.ListMemoReactions(otherVisitorCtx, &apiv1.ListMemoReactionsRequest{Name: publicMemo.Name})
+	require.NoError(t, err)
+	require.Len(t, response.Reactions, 1)
+	require.False(t, response.Reactions[0].IsCurrentUser)
+
+	_, err = ts.Service.DeleteMemoReaction(otherVisitorCtx, &apiv1.DeleteMemoReactionRequest{Name: reaction.Name})
+	require.ErrorContains(t, err, "permission denied")
+
+	_, err = ts.Service.UpsertMemoReaction(visitorCtx, &apiv1.UpsertMemoReactionRequest{
+		Name: protectedMemo.Name,
+		Reaction: &apiv1.Reaction{
+			ContentId:    protectedMemo.Name,
+			ReactionType: "👍",
+		},
+	})
+	require.ErrorContains(t, err, "not authenticated")
+
+	_, err = ts.Service.DeleteMemoReaction(visitorCtx, &apiv1.DeleteMemoReactionRequest{Name: reaction.Name})
+	require.NoError(t, err)
 }
 
 func TestListMemoReactionsSkipsMissingCreators(t *testing.T) {

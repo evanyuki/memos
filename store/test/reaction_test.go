@@ -187,3 +187,32 @@ func TestReactionUpsertDifferentTypes(t *testing.T) {
 
 	ts.Close()
 }
+
+func TestGuestReaction(t *testing.T) {
+	t.Parallel()
+	ctx := context.Background()
+	ts := NewTestingStore(ctx, t)
+	defer ts.Close()
+
+	visitorID := "11111111-1111-4111-8111-111111111111"
+	reaction, err := ts.UpsertReaction(ctx, &store.Reaction{
+		VisitorID:    visitorID,
+		ContentID:    "memos/public",
+		ReactionType: "👍",
+	})
+	require.NoError(t, err)
+	require.Zero(t, reaction.CreatorID)
+	require.Equal(t, visitorID, reaction.VisitorID)
+
+	reactions, err := ts.ListReactions(ctx, &store.FindReaction{VisitorID: &visitorID})
+	require.NoError(t, err)
+	require.Len(t, reactions, 1)
+	require.Equal(t, reaction, reactions[0])
+
+	_, err = ts.UpsertReaction(ctx, &store.Reaction{
+		VisitorID:    visitorID,
+		ContentID:    reaction.ContentID,
+		ReactionType: reaction.ReactionType,
+	})
+	require.Error(t, err)
+}

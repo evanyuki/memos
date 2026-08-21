@@ -15,6 +15,7 @@ func TestMetadataInterceptorForwardsSecurityHeaders(t *testing.T) {
 	req.Header().Set("Origin", "https://memos.example")
 	req.Header().Set("X-Forwarded-Proto", "https")
 	req.Header().Set("Forwarded", "for=203.0.113.1;proto=https")
+	req.Header().Set(visitorIDHeader, "11111111-1111-4111-8111-111111111111")
 
 	handler := interceptor.WrapUnary(func(ctx context.Context, _ connect.AnyRequest) (connect.AnyResponse, error) {
 		md, ok := metadata.FromIncomingContext(ctx)
@@ -29,6 +30,9 @@ func TestMetadataInterceptorForwardsSecurityHeaders(t *testing.T) {
 		}
 		if got := md.Get("forwarded"); len(got) != 1 || got[0] != "for=203.0.113.1;proto=https" {
 			t.Fatalf("unexpected forwarded metadata: %v", got)
+		}
+		if got := md.Get(visitorIDMetadataKey); len(got) != 1 || got[0] != "11111111-1111-4111-8111-111111111111" {
+			t.Fatalf("unexpected visitor ID metadata: %v", got)
 		}
 		return connect.NewResponse(&emptypb.Empty{}), nil
 	})

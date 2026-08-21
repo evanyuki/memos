@@ -10,9 +10,15 @@ import (
 )
 
 func (d *DB) UpsertReaction(ctx context.Context, upsert *store.Reaction) (*store.Reaction, error) {
-	fields := []string{"`creator_id`", "`content_id`", "`reaction_type`"}
-	placeholder := []string{"?", "?", "?"}
-	args := []interface{}{upsert.CreatorID, upsert.ContentID, upsert.ReactionType}
+	fields := []string{"`creator_id`", "`visitor_id`", "`content_id`", "`reaction_type`"}
+	placeholder := []string{"?", "?", "?", "?"}
+	var creatorID, visitorID any
+	if upsert.CreatorID != 0 {
+		creatorID = upsert.CreatorID
+	} else {
+		visitorID = upsert.VisitorID
+	}
+	args := []interface{}{creatorID, visitorID, upsert.ContentID, upsert.ReactionType}
 	stmt := "INSERT INTO `reaction` (" + strings.Join(fields, ", ") + ") VALUES (" + strings.Join(placeholder, ", ") + ")"
 	result, err := d.db.ExecContext(ctx, stmt, args...)
 	if err != nil {
@@ -43,6 +49,9 @@ func (d *DB) ListReactions(ctx context.Context, find *store.FindReaction) ([]*st
 	if find.CreatorID != nil {
 		where, args = append(where, "`creator_id` = ?"), append(args, *find.CreatorID)
 	}
+	if find.VisitorID != nil {
+		where, args = append(where, "`visitor_id` = ?"), append(args, *find.VisitorID)
+	}
 	if find.ContentID != nil {
 		where, args = append(where, "`content_id` = ?"), append(args, *find.ContentID)
 	}
@@ -59,7 +68,8 @@ func (d *DB) ListReactions(ctx context.Context, find *store.FindReaction) ([]*st
 		SELECT
 			id,
 			UNIX_TIMESTAMP(created_ts) AS created_ts,
-			creator_id,
+			COALESCE(creator_id, 0),
+			COALESCE(visitor_id, ''),
 			content_id,
 			reaction_type
 		FROM reaction
@@ -79,6 +89,7 @@ func (d *DB) ListReactions(ctx context.Context, find *store.FindReaction) ([]*st
 			&reaction.ID,
 			&reaction.CreatedTs,
 			&reaction.CreatorID,
+			&reaction.VisitorID,
 			&reaction.ContentID,
 			&reaction.ReactionType,
 		); err != nil {

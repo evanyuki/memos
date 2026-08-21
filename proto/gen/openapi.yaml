@@ -1055,8 +1055,9 @@ paths:
             tags:
                 - MemoService
             description: |-
-                UpsertMemoReaction adds or updates the authenticated user's reaction on a
-                 memo. The reaction's content_id is the memo's resource name (memos/{memo}).
+                UpsertMemoReaction adds or updates the current user's or anonymous visitor's
+                 reaction on a memo. Anonymous visitors may react only to public memos.
+                 The reaction's content_id is the memo's resource name (memos/{memo}).
             operationId: MemoService_UpsertMemoReaction
             parameters:
                 - name: memo
@@ -3613,7 +3614,7 @@ components:
                     readOnly: true
                     type: string
                     description: |-
-                        The resource name of the creator.
+                        The resource name of the creator. Empty for anonymous visitors.
                          Format: users/{user}
                 contentId:
                     type: string
@@ -3629,6 +3630,10 @@ components:
                     type: string
                     description: Output only. The creation timestamp.
                     format: date-time
+                isCurrentUser:
+                    readOnly: true
+                    type: boolean
+                    description: Output only. Whether the reaction belongs to the current user or anonymous visitor.
         RefreshTokenRequest:
             type: object
             properties: {}

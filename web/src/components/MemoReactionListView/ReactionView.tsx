@@ -4,28 +4,31 @@ import { cn } from "@/lib/utils";
 import { State } from "@/types/proto/api/v1/common_pb";
 import type { Memo } from "@/types/proto/api/v1/memo_service_pb";
 import type { User } from "@/types/proto/api/v1/user_service_pb";
-import { formatReactionTooltip, useReactionActions } from "./hooks";
+import { formatReactionTooltip, useCanReact, useReactionActions } from "./hooks";
 
 interface Props {
   memo: Memo;
   reactionType: string;
   users: User[];
+  guestCount: number;
+  hasCurrentUser: boolean;
 }
 
 const ReactionView = (props: Props) => {
-  const { memo, reactionType, users } = props;
+  const { memo, reactionType, users, guestCount, hasCurrentUser } = props;
   const currentUser = useCurrentUser();
-  const hasReaction = users.some((user) => currentUser && user.username === currentUser.username);
+  const hasReaction = currentUser ? users.some((user) => user.username === currentUser.username) : hasCurrentUser;
   const readonly = memo.state === State.ARCHIVED;
+  const canReact = useCanReact(memo);
 
   const { handleReactionClick } = useReactionActions({ memo });
 
   const handleClick = () => {
-    if (!currentUser || readonly) return;
-    handleReactionClick(reactionType);
+    if (!canReact || readonly) return;
+    void handleReactionClick(reactionType);
   };
 
-  const isClickable = currentUser && !readonly;
+  const isClickable = canReact && !readonly;
 
   return (
     <TooltipProvider>
@@ -47,10 +50,10 @@ const ReactionView = (props: Props) => {
           }
         >
           <span>{reactionType}</span>
-          <span className="opacity-60">{users.length}</span>
+          <span className="opacity-60">{users.length + guestCount}</span>
         </TooltipTrigger>
         <TooltipContent>
-          <p>{formatReactionTooltip(users, reactionType)}</p>
+          <p>{formatReactionTooltip(users, guestCount, reactionType)}</p>
         </TooltipContent>
       </Tooltip>
     </TooltipProvider>

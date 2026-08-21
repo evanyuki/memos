@@ -85,7 +85,7 @@ const UserMenu = (props: Props) => {
     try {
       // Then clear user-specific localStorage items
       // Preserve app-wide settings (theme, locale, view preferences, tag view settings)
-      const keysToPreserve = ["memos-theme", "memos-locale", "memos-view-setting", "tag-view-as-tree"];
+      const keysToPreserve = ["memos-theme", "memos-locale", "memos-view-setting", "memos-visitor-id", "tag-view-as-tree"];
       const keysToRemove: string[] = [];
 
       for (let i = 0; i < localStorage.length; i++) {

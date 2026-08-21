@@ -1,5 +1,4 @@
 import { memo } from "react";
-import useCurrentUser from "@/hooks/useCurrentUser";
 import { State } from "@/types/proto/api/v1/common_pb";
 import type { Memo, Reaction } from "@/types/proto/api/v1/memo_service_pb";
 import { useReactionGroups } from "./hooks";
@@ -13,7 +12,6 @@ interface Props {
 
 const MemoReactionListView = (props: Props) => {
   const { memo: memoData, reactions } = props;
-  const currentUser = useCurrentUser();
   const reactionGroup = useReactionGroups(reactions);
   const readonly = memoData.state === State.ARCHIVED;
 
@@ -23,10 +21,17 @@ const MemoReactionListView = (props: Props) => {
 
   return (
     <div className="w-full flex flex-row justify-start items-start flex-wrap gap-1 select-none">
-      {Array.from(reactionGroup).map(([reactionType, users]) => (
-        <ReactionView key={`${reactionType.toString()} ${users.length}`} memo={memoData} reactionType={reactionType} users={users} />
+      {Array.from(reactionGroup).map(([reactionType, group]) => (
+        <ReactionView
+          key={reactionType}
+          memo={memoData}
+          reactionType={reactionType}
+          users={group.users}
+          guestCount={group.guestCount}
+          hasCurrentUser={group.hasCurrentUser}
+        />
       ))}
-      {!readonly && currentUser && <ReactionSelector memo={memoData} />}
+      {!readonly && <ReactionSelector memo={memoData} />}
     </div>
   );
 };

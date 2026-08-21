@@ -242,7 +242,9 @@ func (s *APIV1Service) ListMemoComments(ctx context.Context, request *v1pb.ListM
 		creatorIDs = append(creatorIDs, memo.CreatorID)
 	}
 	for _, reaction := range reactions {
-		creatorIDs = append(creatorIDs, reaction.CreatorID)
+		if reaction.CreatorID != 0 {
+			creatorIDs = append(creatorIDs, reaction.CreatorID)
+		}
 	}
 	creatorMap, err := s.listUsersByID(ctx, creatorIDs)
 	if err != nil {
