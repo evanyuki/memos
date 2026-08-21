@@ -10,6 +10,8 @@ const VALID_THEMES = ["system", "default", "default-dark", "paper"] as const;
 export type Theme = (typeof VALID_THEMES)[number];
 export type ResolvedTheme = Exclude<Theme, "system">;
 
+export const DEFAULT_THEME: Theme = "default-dark";
+
 export interface ThemeOption {
   value: string;
   label: string;
@@ -43,10 +45,10 @@ export const THEME_OPTIONS: ThemeOption[] = [
 
 /**
  * Validates and normalizes a theme string to a valid theme.
- * Falls back to "default" for invalid themes.
+ * Falls back to the application default for invalid themes.
  */
 const validateTheme = (theme: string): Theme => {
-  return VALID_THEMES.includes(theme as Theme) ? (theme as Theme) : "default";
+  return VALID_THEMES.includes(theme as Theme) ? (theme as Theme) : DEFAULT_THEME;
 };
 
 /**
@@ -103,10 +105,10 @@ const setStoredTheme = (theme: Theme): void => {
 
 /**
  * Gets the theme for initial page load (before user settings are available).
- * Priority: localStorage -> system preference
+ * Priority: localStorage -> application default
  */
 export const getInitialTheme = (): Theme => {
-  return getStoredTheme() ?? "system";
+  return getStoredTheme() ?? DEFAULT_THEME;
 };
 
 /**
@@ -114,7 +116,7 @@ export const getInitialTheme = (): Theme => {
  * Priority:
  * 1. User setting (if logged in and has preference)
  * 2. localStorage (from previous session)
- * 3. System preference
+ * 3. Application default
  */
 export const getThemeWithFallback = (userTheme?: string): Theme => {
   // Priority 1: User setting
@@ -128,8 +130,8 @@ export const getThemeWithFallback = (userTheme?: string): Theme => {
     return stored;
   }
 
-  // Priority 3: System preference
-  return "system";
+  // Priority 3: Application default
+  return DEFAULT_THEME;
 };
 
 // ============================================================================
@@ -220,7 +222,7 @@ export const loadTheme = (themeName: string): void => {
 
 /**
  * Applies theme early during initial page load to prevent FOUC.
- * Uses only localStorage and system preference (no user settings yet).
+ * Uses only localStorage and the application default (no user settings yet).
  */
 export const applyThemeEarly = (): void => {
   const theme = getInitialTheme();

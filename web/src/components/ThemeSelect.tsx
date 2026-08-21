@@ -1,7 +1,7 @@
 import { Monitor, Moon, Palette, Sun } from "lucide-react";
 import type { ReactElement } from "react";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { loadTheme, THEME_OPTIONS } from "@/utils/theme";
+import { DEFAULT_THEME, loadTheme, THEME_OPTIONS } from "@/utils/theme";
 
 interface ThemeSelectProps {
   value?: string;
@@ -18,7 +18,7 @@ const THEME_ICONS: Record<string, ReactElement> = {
 };
 
 const ThemeSelect = ({ value, onValueChange, className, compact = false }: ThemeSelectProps = {}) => {
-  const currentTheme = value || "system";
+  const currentTheme = value || DEFAULT_THEME;
   const triggerLabel = currentTheme === "system" ? "System" : THEME_OPTIONS.find((option) => option.value === currentTheme)?.label;
 
   const handleThemeChange = (newTheme: string) => {

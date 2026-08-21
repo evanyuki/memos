@@ -13,7 +13,7 @@ interface Props {
 const AuthFooter = ({ className }: Props) => {
   const { i18n: i18nInstance } = useTranslation();
   const currentLocale = i18nInstance.language as Locale;
-  const [currentTheme, setCurrentTheme] = useState(getInitialTheme());
+  const [currentTheme, setCurrentTheme] = useState(getInitialTheme);
 
   const handleLocaleChange = (locale: Locale) => {
     loadLocale(locale);
