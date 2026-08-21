@@ -1,5 +1,8 @@
 web/node_modules
 web/dist
+.env
+.env.*
+.vercel
 .git
 .github
 build/

@@ -1,0 +1,56 @@
+# syntax=docker/dockerfile:1.7
+
+FROM node:24-alpine AS frontend
+WORKDIR /src/web
+
+RUN corepack enable && corepack prepare pnpm@11.0.1 --activate
+
+COPY web/package.json web/pnpm-lock.yaml ./
+RUN --mount=type=cache,target=/root/.local/share/pnpm/store \
+    pnpm install --frozen-lockfile
+
+COPY web/ ./
+RUN pnpm build
+
+FROM golang:1.27.0-alpine AS backend
+WORKDIR /src
+
+RUN apk add --no-cache ca-certificates git
+
+COPY go.mod go.sum ./
+RUN --mount=type=cache,target=/go/pkg/mod \
+    go mod download
+
+COPY . ./
+COPY --from=frontend /src/web/dist ./server/router/frontend/dist
+
+RUN --mount=type=cache,target=/go/pkg/mod \
+    --mount=type=cache,target=/root/.cache/go-build \
+    CGO_ENABLED=0 go build \
+      -trimpath \
+      -ldflags="-s -w -extldflags '-static'" \
+      -tags netgo,osusergo \
+      -o /out/memos \
+      ./cmd/memos
+
+FROM alpine:3.21
+
+RUN apk add --no-cache ca-certificates tzdata && \
+    addgroup -g 10001 -S nonroot && \
+    adduser -u 10001 -S -G nonroot -h /tmp/memos nonroot && \
+    mkdir -p /tmp/memos && \
+    chown -R nonroot:nonroot /tmp/memos
+
+COPY --from=backend /out/memos /usr/local/bin/memos
+
+USER nonroot
+WORKDIR /tmp/memos
+
+ENV PORT=5230 \
+    MEMOS_ADDR=0.0.0.0 \
+    MEMOS_DATA=/tmp/memos \
+    TZ=UTC
+
+EXPOSE 5230
+
+ENTRYPOINT ["sh", "-c", "exec /usr/local/bin/memos --addr \"${MEMOS_ADDR:-0.0.0.0}\" --port \"${PORT:-5230}\""]
