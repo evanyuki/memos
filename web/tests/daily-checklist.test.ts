@@ -1,17 +1,20 @@
 import { Code, ConnectError } from "@connectrpc/connect";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { fireEvent, render, renderHook, screen, waitFor } from "@testing-library/react";
+import { act, fireEvent, render, renderHook, screen, waitFor } from "@testing-library/react";
 import { createElement, type PropsWithChildren } from "react";
+import { createMemoryRouter, RouterProvider } from "react-router-dom";
 import { describe, expect, it, vi } from "vitest";
 import { useDailyChecklist } from "@/hooks/useDailyChecklistQueries";
 import {
   type DailyChecklistDraft,
+  createEmptyDailyChecklistDraft,
   dailyChecklistFromDraft,
+  getDailyChecklistProgress,
   getLocalDateString,
   isDailyChecklistDate,
   shiftDailyChecklistDate,
 } from "@/lib/daily-checklist";
-import { ChecklistEditor } from "@/pages/DailyChecklist";
+import DailyChecklistPage, { ChecklistEditor } from "@/pages/DailyChecklist";
 import { Visibility } from "@/types/proto/api/v1/memo_service_pb";
 
 const clients = vi.hoisted(() => ({
@@ -35,6 +38,14 @@ vi.mock("@/connect", () => ({
 
 vi.mock("@/utils/i18n", () => ({
   useTranslate: () => (key: string, params?: Record<string, unknown>) => (params?.task ? `${key}:${params.task}` : key),
+}));
+
+vi.mock("react-i18next", () => ({
+  useTranslation: () => ({ i18n: { language: "en" } }),
+}));
+
+vi.mock("@/hooks/useCurrentUser", () => ({
+  default: () => ({ username: "test" }),
 }));
 
 vi.mock("react-hot-toast", () => ({ default: toasts }));
@@ -67,10 +78,12 @@ describe("daily checklist model", () => {
     expect(result.current.data).toBeNull();
   });
 
-  it("edits, completes, removes, and deletes a saved checklist", async () => {
+  it("autosaves task completion and keeps editing and deletion available", async () => {
     clients.deleteDailyChecklist.mockResolvedValue({});
+    clients.upsertDailyChecklist.mockImplementation(async ({ dailyChecklist }) => dailyChecklist);
     const checklistDraft = draft();
     checklistDraft.mustWinTasks[0].completed = false;
+    checklistDraft.firstTaskTomorrow = "";
     const checklist = dailyChecklistFromDraft("users/test/dailyChecklists/2026-08-24", "2026-08-24", checklistDraft);
     const queryClient = new QueryClient({ defaultOptions: { mutations: { retry: false } } });
 
@@ -88,21 +101,204 @@ describe("daily checklist model", () => {
       ),
     );
 
+    fireEvent.click(screen.getByRole("checkbox"));
+    await waitFor(() =>
+      expect(clients.upsertDailyChecklist).toHaveBeenCalledWith({
+        dailyChecklist: expect.objectContaining({
+          taskSection: expect.objectContaining({ mustWinTasks: [expect.objectContaining({ content: "Ship it", completed: true })] }),
+        }),
+      }),
+    );
+
+    fireEvent.click(screen.getByRole("button", { name: "daily-checklist.adjust-plan" }));
     const task = screen.getByDisplayValue("Ship it");
     fireEvent.change(task, { target: { value: "Edited task" } });
     expect(task).toHaveValue("Edited task");
 
-    fireEvent.click(screen.getByRole("checkbox"));
-    expect(toasts.success).toHaveBeenCalledWith("daily-checklist.task-completed:Edited task");
-
     fireEvent.click(screen.getByRole("button", { name: "daily-checklist.remove-task" }));
     expect(screen.queryByDisplayValue("Edited task")).not.toBeInTheDocument();
 
-    fireEvent.click(screen.getByRole("button", { name: "daily-checklist.delete" }));
+    fireEvent.click(screen.getByRole("button", { name: "daily-checklist.save-plan" }));
+    await waitFor(() => expect(clients.upsertDailyChecklist).toHaveBeenCalledTimes(2));
+
+    fireEvent.click(screen.getByRole("button", { name: "daily-checklist.visibility-label" }));
+    fireEvent.click(await screen.findByRole("menuitem", { name: "daily-checklist.delete" }));
     fireEvent.click(await screen.findByRole("button", { name: "common.delete" }));
 
     await waitFor(() => expect(clients.deleteDailyChecklist).toHaveBeenCalledWith({ name: checklist.name }));
     expect(toasts.success).toHaveBeenCalledWith("daily-checklist.deleted");
+  });
+
+  it("rolls back a task toggle when autosave fails", async () => {
+    clients.upsertDailyChecklist.mockClear();
+    toasts.error.mockClear();
+    clients.upsertDailyChecklist.mockRejectedValueOnce(new ConnectError("save failed", Code.Unavailable));
+    const checklistDraft = draft();
+    checklistDraft.mustWinTasks[0].completed = false;
+    checklistDraft.firstTaskTomorrow = "";
+    const checklist = dailyChecklistFromDraft("users/test/dailyChecklists/2026-08-24", "2026-08-24", checklistDraft);
+    const queryClient = new QueryClient({ defaultOptions: { mutations: { retry: false } } });
+
+    render(
+      createElement(
+        QueryClientProvider,
+        { client: queryClient },
+        createElement(ChecklistEditor, {
+          checklist,
+          date: "2026-08-24",
+          name: checklist.name,
+          readonly: false,
+          username: "test",
+        }),
+      ),
+    );
+
+    const task = screen.getByRole("checkbox");
+    fireEvent.click(task);
+    await waitFor(() => expect(toasts.error).toHaveBeenCalled());
+    expect(task).not.toBeChecked();
+  });
+
+  it("renders public checklists as content instead of form controls", () => {
+    const checklist = dailyChecklistFromDraft("users/test/dailyChecklists/2026-08-24", "2026-08-24", draft());
+    const queryClient = new QueryClient();
+
+    render(
+      createElement(
+        QueryClientProvider,
+        { client: queryClient },
+        createElement(ChecklistEditor, {
+          checklist,
+          date: "2026-08-24",
+          name: checklist.name,
+          readonly: true,
+          username: "test",
+        }),
+      ),
+    );
+
+    expect(screen.getByText("Start with the plan")).toBeInTheDocument();
+    expect(screen.getByText("Focus block")).toBeInTheDocument();
+    expect(screen.queryByRole("textbox")).not.toBeInTheDocument();
+    expect(screen.queryByRole("checkbox")).not.toBeInTheDocument();
+  });
+
+  it("renders a closed checklist as a summary while keeping explicit edit actions", () => {
+    const checklist = dailyChecklistFromDraft("users/test/dailyChecklists/2026-08-24", "2026-08-24", draft());
+    const queryClient = new QueryClient();
+
+    render(
+      createElement(
+        QueryClientProvider,
+        { client: queryClient },
+        createElement(ChecklistEditor, {
+          checklist,
+          date: "2026-08-24",
+          name: checklist.name,
+          readonly: false,
+          username: "test",
+        }),
+      ),
+    );
+
+    expect(screen.getByText("daily-checklist.states.closed")).toBeInTheDocument();
+    expect(screen.getByText("daily-checklist.plan-progress-count")).toBeInTheDocument();
+    expect(screen.queryByRole("checkbox")).not.toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "daily-checklist.adjust-plan" })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "daily-checklist.edit-reflection" })).toBeInTheDocument();
+  });
+
+  it("limits a new daily plan to three must-win results", () => {
+    const checklistDraft = draft();
+    checklistDraft.firstTaskTomorrow = "";
+    checklistDraft.mustWinTasks[1].content = "Second result";
+    const checklist = dailyChecklistFromDraft("users/test/dailyChecklists/2026-08-24", "2026-08-24", checklistDraft);
+    const queryClient = new QueryClient();
+
+    render(
+      createElement(
+        QueryClientProvider,
+        { client: queryClient },
+        createElement(ChecklistEditor, {
+          checklist,
+          date: "2026-08-24",
+          name: checklist.name,
+          readonly: false,
+          username: "test",
+        }),
+      ),
+    );
+
+    fireEvent.click(screen.getByRole("button", { name: "daily-checklist.adjust-plan" }));
+    fireEvent.click(screen.getByRole("button", { name: "daily-checklist.add-task" }));
+
+    expect(screen.getAllByLabelText("daily-checklist.task-number")).toHaveLength(3);
+    expect(screen.queryByRole("button", { name: "daily-checklist.add-task" })).not.toBeInTheDocument();
+  });
+
+  it("does not close or implicitly save the day while reflection edits are unsaved", async () => {
+    clients.upsertDailyChecklist.mockClear();
+    clients.upsertDailyChecklist.mockImplementation(async ({ dailyChecklist }) => dailyChecklist);
+    const checklistDraft = draft();
+    checklistDraft.firstTaskTomorrow = "";
+    const checklist = dailyChecklistFromDraft("users/test/dailyChecklists/2026-08-24", "2026-08-24", checklistDraft);
+    const queryClient = new QueryClient({ defaultOptions: { mutations: { retry: false } } });
+
+    render(
+      createElement(
+        QueryClientProvider,
+        { client: queryClient },
+        createElement(ChecklistEditor, {
+          checklist,
+          date: "2026-08-24",
+          name: checklist.name,
+          readonly: false,
+          username: "test",
+        }),
+      ),
+    );
+
+    fireEvent.click(screen.getByRole("button", { name: "daily-checklist.continue-reflection" }));
+    expect(screen.queryByRole("checkbox")).not.toBeInTheDocument();
+    expect(screen.getByText("daily-checklist.reflection.today-title")).toBeInTheDocument();
+    expect(screen.getByText("daily-checklist.reflection.tomorrow-title")).toBeInTheDocument();
+
+    fireEvent.change(screen.getByLabelText(/daily-checklist\.fields\.first-task-tomorrow/), { target: { value: "Open the plan" } });
+
+    expect(screen.getByText("daily-checklist.states.reflection_due")).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "daily-checklist.save-and-close" })).toBeEnabled();
+    expect(screen.getByLabelText(/daily-checklist\.fields\.first-task-tomorrow/)).toBeInTheDocument();
+    expect(clients.upsertDailyChecklist).not.toHaveBeenCalled();
+
+    fireEvent.click(screen.getByRole("button", { name: "daily-checklist.save-and-close" }));
+
+    await waitFor(() => expect(screen.getByText("daily-checklist.states.closed")).toBeInTheDocument());
+    expect(screen.queryByLabelText(/daily-checklist\.fields\.first-task-tomorrow/)).not.toBeInTheDocument();
+  });
+
+  it("blocks checklist navigation while the plan has unsaved changes", async () => {
+    clients.getDailyChecklist.mockRejectedValueOnce(new ConnectError("daily checklist not found", Code.NotFound));
+    const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+    const router = createMemoryRouter(
+      [
+        { path: "/daily-checklist", element: createElement(DailyChecklistPage) },
+        { path: "/other", element: createElement("div", undefined, "Other page") },
+      ],
+      { initialEntries: ["/daily-checklist?date=2026-08-24"] },
+    );
+
+    render(createElement(QueryClientProvider, { client: queryClient }, createElement(RouterProvider, { router })));
+
+    fireEvent.change(await screen.findByLabelText("daily-checklist.fields.first-task"), { target: { value: "Start now" } });
+    await waitFor(() => expect(screen.getByText("daily-checklist.unsaved")).toBeInTheDocument());
+
+    act(() => {
+      void router.navigate("/other");
+    });
+    expect(await screen.findByText("daily-checklist.discard-confirm-title")).toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole("button", { name: "daily-checklist.discard" }));
+    expect(await screen.findByText("Other page")).toBeInTheDocument();
   });
 
   it("normalizes a draft into the structured API resource", () => {
@@ -132,5 +328,37 @@ describe("daily checklist model", () => {
 
   it("formats a date using local calendar components", () => {
     expect(getLocalDateString(new Date(2026, 7, 4, 23, 59))).toBe("2026-08-04");
+  });
+
+  it("derives planning, execution, reflection, and closure independently", () => {
+    const empty = createEmptyDailyChecklistDraft();
+    expect(getDailyChecklistProgress(empty, "2026-08-24", "2026-08-24").state).toBe("draft");
+
+    empty.firstTask = "Open the plan";
+    expect(getDailyChecklistProgress(empty, "2026-08-24", "2026-08-24")).toMatchObject({ state: "draft", planCompleted: 1 });
+
+    empty.ifThen = "If distracted, close the feed";
+    empty.mustWinTasks[0].content = "Ship the plan";
+    expect(getDailyChecklistProgress(empty, "2026-08-25", "2026-08-24").state).toBe("planned");
+    expect(getDailyChecklistProgress(empty, "2026-08-24", "2026-08-24").state).toBe("active");
+    expect(getDailyChecklistProgress(empty, "2026-08-23", "2026-08-24").state).toBe("reflection_due");
+
+    empty.mustWinTasks[0].completed = true;
+    expect(getDailyChecklistProgress(empty, "2026-08-24", "2026-08-24").state).toBe("reflection_due");
+    empty.mustWinTasks[0].completed = false;
+
+    empty.mostEffectiveAction = "Focus";
+    expect(getDailyChecklistProgress(empty, "2026-08-24", "2026-08-24").state).toBe("reflection_due");
+
+    empty.biggestObstacle = "Noise";
+    empty.obstacleResponse = "Moved rooms";
+    empty.keepForTomorrow = "Focus block";
+    empty.removeForTomorrow = "Notifications";
+    empty.firstTaskTomorrow = "Open the plan";
+    expect(getDailyChecklistProgress(empty, "2026-08-24", "2026-08-24")).toMatchObject({
+      state: "closed",
+      tasksAllCompleted: false,
+      reflectionComplete: true,
+    });
   });
 });

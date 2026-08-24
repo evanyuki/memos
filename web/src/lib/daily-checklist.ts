@@ -28,6 +28,22 @@ export interface DailyChecklistDraft {
   visibility: Visibility;
 }
 
+export type DailyChecklistState = "draft" | "planned" | "active" | "reflection_due" | "closed";
+
+export interface DailyChecklistProgress {
+  state: DailyChecklistState;
+  hasContent: boolean;
+  planCompleted: number;
+  planReady: boolean;
+  planTotal: 3;
+  tasksCompleted: number;
+  tasksTotal: number;
+  tasksAllCompleted: boolean;
+  reflectionCompleted: number;
+  reflectionComplete: boolean;
+  reflectionTotal: 6;
+}
+
 export const createDailyChecklistTaskDraft = (): DailyChecklistTaskDraft => ({
   id: crypto.randomUUID(),
   content: "",
@@ -53,10 +69,9 @@ export const dailyChecklistToDraft = (checklist?: DailyChecklist): DailyChecklis
   return {
     firstTask: checklist.taskSection?.firstTask ?? "",
     ifThen: checklist.taskSection?.ifThen ?? "",
-    mustWinTasks:
-      checklist.taskSection?.mustWinTasks.length === 0
-        ? [createDailyChecklistTaskDraft()]
-        : (checklist.taskSection?.mustWinTasks.map((task) => ({ id: task.id, content: task.content, completed: task.completed })) ?? []),
+    mustWinTasks: checklist.taskSection?.mustWinTasks.length
+      ? checklist.taskSection.mustWinTasks.map((task) => ({ id: task.id, content: task.content, completed: task.completed }))
+      : [createDailyChecklistTaskDraft()],
     notes: checklist.taskSection?.notes ?? "",
     mostEffectiveAction: checklist.eveningReflection?.mostEffectiveAction ?? "",
     biggestObstacle: checklist.eveningReflection?.biggestObstacle ?? "",
@@ -92,6 +107,51 @@ export const dailyChecklistFromDraft = (name: string, date: string, draft: Daily
       firstTaskTomorrow: draft.firstTaskTomorrow.trim(),
     }),
   });
+};
+
+export const getDailyChecklistProgress = (
+  draft: DailyChecklistDraft,
+  date: string,
+  today = getLocalDateString(),
+): DailyChecklistProgress => {
+  const tasks = draft.mustWinTasks.filter((task) => task.content.trim());
+  const reflectionValues = [
+    draft.mostEffectiveAction,
+    draft.biggestObstacle,
+    draft.obstacleResponse,
+    draft.keepForTomorrow,
+    draft.removeForTomorrow,
+    draft.firstTaskTomorrow,
+  ];
+  const planCompleted = Number(Boolean(draft.firstTask.trim())) + Number(Boolean(draft.ifThen.trim())) + Number(tasks.length > 0);
+  const tasksCompleted = tasks.filter((task) => task.completed).length;
+  const tasksAllCompleted = tasks.length > 0 && tasksCompleted === tasks.length;
+  const reflectionCompleted = reflectionValues.filter((value) => value.trim()).length;
+  const hasContent =
+    planCompleted > 0 || Boolean(draft.notes.trim()) || reflectionCompleted > 0 || draft.mustWinTasks.some((task) => task.completed);
+  const planReady = planCompleted === 3;
+  const reflectionComplete = reflectionCompleted === reflectionValues.length;
+
+  let state: DailyChecklistState;
+  if (reflectionComplete) state = "closed";
+  else if (!planReady) state = "draft";
+  else if (reflectionCompleted > 0 || date < today || tasksAllCompleted) state = "reflection_due";
+  else if (date > today) state = "planned";
+  else state = "active";
+
+  return {
+    state,
+    hasContent,
+    planCompleted,
+    planReady,
+    planTotal: 3,
+    tasksCompleted,
+    tasksTotal: tasks.length,
+    tasksAllCompleted,
+    reflectionCompleted,
+    reflectionComplete,
+    reflectionTotal: 6,
+  };
 };
 
 export const getLocalDateString = (date = new Date()): string => {

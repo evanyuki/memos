@@ -1,6 +1,6 @@
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { fireEvent, render as testingLibraryRender, screen } from "@testing-library/react";
-import { MemoryRouter } from "react-router-dom";
+import { MemoryRouter, useLocation } from "react-router-dom";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import AppSidebar, { MobileAppHeader } from "@/components/AppSidebar";
 import { SIDEBAR_SECTION_ACTION_BUTTON_CLASSES, SIDEBAR_SECTION_ACTION_ICON_CLASSES } from "@/components/AppSidebar/SidebarSection";
@@ -27,6 +27,14 @@ vi.mock("@/components/UserMenu", () => ({
 
 vi.mock("@/components/StatisticsView", () => ({
   default: () => <div>Calendar</div>,
+}));
+
+vi.mock("@/components/StatisticsView/SidebarDateCalendar", () => ({
+  SidebarDateCalendar: ({ selectedDate, onDateSelect }: { selectedDate: string; onDateSelect: (date: string) => void }) => (
+    <button type="button" onClick={() => onDateSelect("2026-08-25")}>
+      Daily calendar {selectedDate}
+    </button>
+  ),
 }));
 
 vi.mock("@/components/AppSidebar/TagsSection", () => ({
@@ -104,6 +112,11 @@ const render = (ui: Parameters<typeof testingLibraryRender>[0]) =>
   testingLibraryRender(
     <QueryClientProvider client={new QueryClient({ defaultOptions: { queries: { retry: false } } })}>{ui}</QueryClientProvider>,
   );
+
+const LocationProbe = () => {
+  const location = useLocation();
+  return <output data-testid="location">{`${location.pathname}${location.search}`}</output>;
+};
 
 const expectCollapsedNavPill = (pill: HTMLElement, label: string) => {
   expect(pill).toHaveClass("h-[30px]", "px-[7px]");
@@ -226,6 +239,32 @@ describe("App sidebar logo", () => {
     expect(await screen.findByRole("menuitem", { name: "common.home" })).toBeInTheDocument();
     expect(screen.getByRole("menuitem", { name: "common.explore" })).toBeInTheDocument();
     expect(screen.getByRole("menuitem", { name: "common.archived" })).toBeInTheDocument();
+  });
+
+  it("keeps checklist date selection on the checklist route", () => {
+    render(
+      <MemoryRouter initialEntries={["/daily-checklist?date=2026-08-24"]}>
+        <AppSidebar />
+        <LocationProbe />
+      </MemoryRouter>,
+    );
+
+    fireEvent.click(screen.getByRole("button", { name: "Daily calendar 2026-08-24" }));
+
+    expect(screen.getByTestId("location")).toHaveTextContent("/daily-checklist?date=2026-08-25");
+    expect(screen.queryByText("common.views")).not.toBeInTheDocument();
+    expect(screen.queryByText("Tags")).not.toBeInTheDocument();
+  });
+
+  it("does not show a cross-date calendar on a public checklist", () => {
+    render(
+      <MemoryRouter initialEntries={["/u/test/daily-checklists/2026-08-24"]}>
+        <AppSidebar />
+      </MemoryRouter>,
+    );
+
+    expect(screen.queryByText("Calendar")).not.toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: /Daily calendar/ })).not.toBeInTheDocument();
   });
 
   it("uses compact text-only actions for a saved view", async () => {

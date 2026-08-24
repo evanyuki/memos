@@ -32,6 +32,7 @@ import { MemoDetailSidebar } from "@/components/MemoDetailSidebar";
 import MemoDisplaySettingMenu from "@/components/MemoDisplaySettingMenu";
 import { SETTINGS_SECTIONS } from "@/components/Settings/settingSections";
 import StatisticsView from "@/components/StatisticsView";
+import { SidebarDateCalendar } from "@/components/StatisticsView/SidebarDateCalendar";
 import UserMenu from "@/components/UserMenu";
 import { Button } from "@/components/ui/button";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
@@ -47,6 +48,7 @@ import useCurrentUser from "@/hooks/useCurrentUser";
 import { type MemoStatsContext, useFilteredMemoStats } from "@/hooks/useFilteredMemoStats";
 import useMediaQuery from "@/hooks/useMediaQuery";
 import { useMemoViews, useNotifications, userKeys, useUser } from "@/hooks/useUserQueries";
+import { getLocalDateString, isDailyChecklistDate } from "@/lib/daily-checklist";
 import { handleError } from "@/lib/error";
 import {
   BUILTIN_TASKS_VIEW_ID,
@@ -252,6 +254,27 @@ const CollectionSidebarContent = ({ context }: { context: MemoStatsContext }) =>
   );
 };
 
+const DailyChecklistSidebarContent = () => {
+  const t = useTranslate();
+  const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
+  const { setMobileOpen } = useAppSidebar();
+  const requestedDate = searchParams.get("date");
+  const selectedDate = isDailyChecklistDate(requestedDate) ? requestedDate : getLocalDateString();
+
+  return (
+    <SidebarSection ariaLabel={t("daily-checklist.calendar")}>
+      <SidebarDateCalendar
+        selectedDate={selectedDate}
+        onDateSelect={(date) => {
+          navigate({ pathname: ROUTES.DAILY_CHECKLIST, search: new URLSearchParams({ date }).toString() });
+          setMobileOpen(false);
+        }}
+      />
+    </SidebarSection>
+  );
+};
+
 const AttachmentsSidebarContent = () => {
   const t = useTranslate();
   const { attachmentSection, setAttachmentSection, setMobileOpen } = useAppSidebar();
@@ -376,6 +399,7 @@ const RouteSidebarContent = () => {
   if (kind === "home" || kind === "archived" || kind === "explore" || kind === "profile") {
     return <CollectionSidebarContent context={kind} />;
   }
+  if (kind === "daily-checklist") return location.pathname === ROUTES.DAILY_CHECKLIST ? <DailyChecklistSidebarContent /> : null;
   if (kind === "views") return <ViewsSection manageActive />;
   if (kind === "attachments") return <AttachmentsSidebarContent />;
   if (kind === "inbox") return <InboxSidebarContent />;
