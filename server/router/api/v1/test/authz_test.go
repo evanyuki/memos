@@ -30,6 +30,7 @@ func TestAuthorizerPrivateInstanceRegistration(t *testing.T) {
 		signIn        = "/memos.api.v1.AuthService/SignIn"
 		listMemos     = "/memos.api.v1.MemoService/ListMemos"
 		getSharedMemo = "/memos.api.v1.MemoService/GetSharedMemo"
+		getChecklist  = "/memos.api.v1.DailyChecklistService/GetDailyChecklist"
 	)
 
 	// Anonymous request with no Authorization header resolves to no identity.
@@ -41,6 +42,7 @@ func TestAuthorizerPrivateInstanceRegistration(t *testing.T) {
 	require.NoError(t, authorizer.CheckAccess(ctx, createUser, nil))
 	require.NoError(t, authorizer.CheckAccess(ctx, signIn, nil))
 	require.NoError(t, authorizer.CheckAccess(ctx, getSharedMemo, nil))
+	require.NoError(t, authorizer.CheckAccess(ctx, getChecklist, nil))
 	require.ErrorIs(t, authorizer.CheckAccess(ctx, listMemos, nil), apiv1.ErrUnauthenticated)
 
 	// Once a user exists, CreateUser remains reachable so UserService can enforce

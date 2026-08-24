@@ -64,6 +64,8 @@ const PUBLIC_ROUTE_PREFIXES = [
   "/memos/", // Individual memo detail pages (dynamic)
 ] as const;
 
+const PUBLIC_DAILY_CHECKLIST_PATH = /^\/u\/[^/]+\/daily-checklists\/\d{4}-\d{2}-\d{2}\/?$/;
+
 /**
  * Reports whether a given pathname corresponds to a page that unauthenticated
  * visitors are allowed to view without being bounced to the auth page.
@@ -77,15 +79,17 @@ export function isPublicRoute(path: string): boolean {
  * to the sign-in page for the given path.
  *
  * A private instance (no configured instance URL) hides everything from anonymous
- * visitors except share-link pages, which stay accessible so public shares keep
- * working. Authenticated visitors and open instances are never gated.
+ * visitors except explicit share-link pages. Authenticated visitors and open
+ * instances are never gated.
  */
 export function shouldGatePrivateInstance(params: { isPrivateInstance: boolean; isAuthenticated: boolean; pathname: string }): boolean {
   const { isPrivateInstance, isAuthenticated, pathname } = params;
   if (!isPrivateInstance || isAuthenticated) {
     return false;
   }
-  return !pathname.startsWith(`${ROUTES.SHARED_MEMO}/`);
+  const isSharedMemo = pathname.startsWith(`${ROUTES.SHARED_MEMO}/`);
+  const isPublicDailyChecklist = PUBLIC_DAILY_CHECKLIST_PATH.test(pathname);
+  return !isSharedMemo && !isPublicDailyChecklist;
 }
 
 /**

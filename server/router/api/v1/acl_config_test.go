@@ -126,6 +126,7 @@ func TestAuthBootstrapClassification(t *testing.T) {
 		"/memos.api.v1.InstanceService/BatchGetInstanceSettings",
 		"/memos.api.v1.IdentityProviderService/ListIdentityProviders",
 		"/memos.api.v1.MemoService/GetSharedMemo",
+		"/memos.api.v1.DailyChecklistService/GetDailyChecklist",
 	}
 	for _, method := range bootstrap {
 		t.Run("bootstrap/"+method, func(t *testing.T) {
@@ -145,7 +146,6 @@ func TestAuthBootstrapClassification(t *testing.T) {
 		"/memos.api.v1.AttachmentService/GetAttachment",
 		"/memos.api.v1.UserService/GetUser",
 		"/memos.api.v1.UserService/ListAllUserStats",
-		"/memos.api.v1.DailyChecklistService/GetDailyChecklist",
 	}
 	for _, method := range gatedWhilePrivate {
 		t.Run("gated/"+method, func(t *testing.T) {

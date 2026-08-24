@@ -101,4 +101,21 @@ describe("shouldGatePrivateInstance", () => {
   it("keeps share links reachable for anonymous visitors on a private instance", () => {
     expect(shouldGatePrivateInstance({ isPrivateInstance: true, isAuthenticated: false, pathname: "/memos/shares/token123" })).toBe(false);
   });
+
+  it("keeps public daily checklist links reachable for anonymous visitors on a private instance", () => {
+    expect(
+      shouldGatePrivateInstance({
+        isPrivateInstance: true,
+        isAuthenticated: false,
+        pathname: "/u/steven/daily-checklists/2026-08-24",
+      }),
+    ).toBe(false);
+    expect(
+      shouldGatePrivateInstance({
+        isPrivateInstance: true,
+        isAuthenticated: false,
+        pathname: "/u/steven/daily-checklists/not-a-date",
+      }),
+    ).toBe(true);
+  });
 });

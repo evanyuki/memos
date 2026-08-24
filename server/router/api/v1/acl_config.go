@@ -81,6 +81,10 @@ var AuthBootstrapMethods = map[string]struct{}{
 
 	// Memo sharing - share-token access stays public even on a private instance.
 	"/memos.api.v1.MemoService/GetSharedMemo": {},
+
+	// Public daily checklists remain shareable on a private instance. The service
+	// returns NotFound for private checklists and for missing resources.
+	"/memos.api.v1.DailyChecklistService/GetDailyChecklist": {},
 }
 
 // IsAuthBootstrapMethod reports whether an anonymous request to procedure is one
