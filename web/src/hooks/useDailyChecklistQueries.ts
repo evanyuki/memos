@@ -12,12 +12,12 @@ export function useDailyChecklist(name: string) {
   return useQuery({
     queryKey: dailyChecklistKeys.detail(name),
     enabled: Boolean(name),
-    queryFn: async (): Promise<DailyChecklist | undefined> => {
+    queryFn: async (): Promise<DailyChecklist | null> => {
       try {
         return await dailyChecklistServiceClient.getDailyChecklist({ name });
       } catch (error) {
         if (error instanceof ConnectError && error.code === Code.NotFound) {
-          return undefined;
+          return null;
         }
         throw error;
       }
@@ -41,7 +41,7 @@ export function useDeleteDailyChecklist(name: string) {
   return useMutation({
     mutationFn: () => dailyChecklistServiceClient.deleteDailyChecklist({ name }),
     onSuccess: () => {
-      queryClient.setQueryData(dailyChecklistKeys.detail(name), undefined);
+      queryClient.setQueryData(dailyChecklistKeys.detail(name), null);
     },
   });
 }

@@ -1,4 +1,9 @@
-import { describe, expect, it } from "vitest";
+import { Code, ConnectError } from "@connectrpc/connect";
+import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
+import { renderHook, waitFor } from "@testing-library/react";
+import { createElement, type PropsWithChildren } from "react";
+import { describe, expect, it, vi } from "vitest";
+import { useDailyChecklist } from "@/hooks/useDailyChecklistQueries";
 import {
   type DailyChecklistDraft,
   dailyChecklistFromDraft,
@@ -7,6 +12,16 @@ import {
   shiftDailyChecklistDate,
 } from "@/lib/daily-checklist";
 import { Visibility } from "@/types/proto/api/v1/memo_service_pb";
+
+const clients = vi.hoisted(() => ({
+  getDailyChecklist: vi.fn(),
+}));
+
+vi.mock("@/connect", () => ({
+  dailyChecklistServiceClient: {
+    getDailyChecklist: clients.getDailyChecklist,
+  },
+}));
 
 const draft = (): DailyChecklistDraft => ({
   firstTask: "  Start with the plan  ",
@@ -26,6 +41,16 @@ const draft = (): DailyChecklistDraft => ({
 });
 
 describe("daily checklist model", () => {
+  it("treats a missing checklist as an editable empty state", async () => {
+    clients.getDailyChecklist.mockRejectedValueOnce(new ConnectError("daily checklist not found", Code.NotFound));
+    const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+    const wrapper = ({ children }: PropsWithChildren) => createElement(QueryClientProvider, { client: queryClient }, children);
+    const { result } = renderHook(() => useDailyChecklist("users/test/dailyChecklists/2026-08-24"), { wrapper });
+
+    await waitFor(() => expect(result.current.isSuccess).toBe(true));
+    expect(result.current.data).toBeNull();
+  });
+
   it("normalizes a draft into the structured API resource", () => {
     const checklist = dailyChecklistFromDraft("users/test/dailyChecklists/2026-08-24", "2026-08-24", draft());
 

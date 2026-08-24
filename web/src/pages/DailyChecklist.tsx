@@ -462,7 +462,7 @@ const DailyChecklistPage = () => {
   return (
     <ChecklistEditor
       key={`${name}:${readonly ? "read" : dateSearch}`}
-      checklist={query.data}
+      checklist={query.data ?? undefined}
       date={date}
       name={name}
       username={username}
