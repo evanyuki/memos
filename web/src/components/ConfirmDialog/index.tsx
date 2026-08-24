@@ -46,10 +46,10 @@ export default function ConfirmDialog({
           {description ? <DialogDescription>{description}</DialogDescription> : null}
         </DialogHeader>
         <DialogFooter>
-          <Button variant="ghost" disabled={loading} onClick={() => onOpenChange(false)}>
+          <Button type="button" variant="ghost" disabled={loading} onClick={() => onOpenChange(false)}>
             {cancelLabel}
           </Button>
-          <Button variant={confirmVariant} disabled={loading} onClick={handleConfirm} data-loading={loading}>
+          <Button type="button" variant={confirmVariant} disabled={loading} onClick={handleConfirm} data-loading={loading}>
             {confirmLabel}
           </Button>
         </DialogFooter>

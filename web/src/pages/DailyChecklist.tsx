@@ -15,13 +15,14 @@ import {
 import { type FormEvent, useEffect, useMemo, useState } from "react";
 import toast from "react-hot-toast";
 import { useNavigate, useParams, useSearchParams } from "react-router-dom";
+import ConfirmDialog from "@/components/ConfirmDialog";
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import useCurrentUser from "@/hooks/useCurrentUser";
-import { useDailyChecklist, useUpsertDailyChecklist } from "@/hooks/useDailyChecklistQueries";
+import { useDailyChecklist, useDeleteDailyChecklist, useUpsertDailyChecklist } from "@/hooks/useDailyChecklistQueries";
 import {
   createDailyChecklistTaskDraft,
   type DailyChecklistDraft,
@@ -69,12 +70,14 @@ interface ChecklistEditorProps {
   onDateChange?: (date: string) => void;
 }
 
-const ChecklistEditor = ({ checklist, date, name, username, readonly, onDateChange }: ChecklistEditorProps) => {
+export const ChecklistEditor = ({ checklist, date, name, username, readonly, onDateChange }: ChecklistEditorProps) => {
   const t = useTranslate();
   const [draft, setDraft] = useState(() => dailyChecklistToDraft(checklist));
   const [dirty, setDirty] = useState(false);
   const [savedAt, setSavedAt] = useState<Date | undefined>(() => (checklist?.updateTime ? timestampDate(checklist.updateTime) : undefined));
+  const [deleteOpen, setDeleteOpen] = useState(false);
   const upsert = useUpsertDailyChecklist(name);
+  const deleteChecklist = useDeleteDailyChecklist(name);
 
   useEffect(() => {
     if (!dirty) return;
@@ -117,6 +120,27 @@ const ChecklistEditor = ({ checklist, date, name, username, readonly, onDateChan
       toast.success(t("daily-checklist.link-copied"));
     } catch (error) {
       handleError(error, toast.error, { context: t("daily-checklist.copy-error") });
+    }
+  };
+
+  const handleTaskCompletion = (taskId: string, taskContent: string, completed: boolean) => {
+    updateDraft((current) => ({
+      ...current,
+      mustWinTasks: current.mustWinTasks.map((task) => (task.id === taskId ? { ...task, completed } : task)),
+    }));
+    toast.success(t(completed ? "daily-checklist.task-completed" : "daily-checklist.task-reopened", { task: taskContent.trim() }));
+  };
+
+  const handleDeleteChecklist = async () => {
+    try {
+      await deleteChecklist.mutateAsync();
+      setDraft(dailyChecklistToDraft());
+      setSavedAt(undefined);
+      setDirty(false);
+      toast.success(t("daily-checklist.deleted"));
+    } catch (error) {
+      handleError(error, toast.error, { context: t("daily-checklist.delete-error") });
+      throw error;
     }
   };
 
@@ -212,7 +236,7 @@ const ChecklistEditor = ({ checklist, date, name, username, readonly, onDateChan
               );
             })}
           </div>
-          <div className="flex items-center justify-between gap-3 sm:justify-end">
+          <div className="flex flex-wrap items-center justify-between gap-3 sm:justify-end">
             <span className={cn("text-xs", dirty ? "font-medium text-amber-700 dark:text-amber-400" : "text-muted-foreground")}>
               {statusLabel}
             </span>
@@ -220,6 +244,17 @@ const ChecklistEditor = ({ checklist, date, name, username, readonly, onDateChan
               <Button type="button" variant="outline" className="h-11 sm:h-8" onClick={handleShare}>
                 <Share2Icon aria-hidden="true" />
                 {t("common.share")}
+              </Button>
+            )}
+            {checklist && (
+              <Button
+                type="button"
+                variant="ghost"
+                className="h-11 text-destructive hover:text-destructive sm:h-8"
+                onClick={() => setDeleteOpen(true)}
+              >
+                <Trash2Icon aria-hidden="true" />
+                {t("daily-checklist.delete")}
               </Button>
             )}
             <Button type="submit" className="h-11 sm:h-8" disabled={upsert.isPending || !dirty}>
@@ -240,7 +275,12 @@ const ChecklistEditor = ({ checklist, date, name, username, readonly, onDateChan
               </h2>
               <p className="mt-1 text-sm text-muted-foreground">{t("daily-checklist.task-section-description")}</p>
             </div>
-            <div className="shrink-0 rounded-full bg-muted px-2.5 py-1 text-xs font-medium text-muted-foreground">
+            <div
+              className="shrink-0 rounded-full bg-muted px-2.5 py-1 text-xs font-medium text-muted-foreground"
+              role="status"
+              aria-live="polite"
+              aria-atomic="true"
+            >
               {t("daily-checklist.task-progress", { completed: completedTasks, total: totalTasks })}
             </div>
           </div>
@@ -299,20 +339,17 @@ const ChecklistEditor = ({ checklist, date, name, username, readonly, onDateChan
                       checked={task.completed}
                       disabled={readonly || !task.content.trim()}
                       className="size-5"
-                      aria-label={t("daily-checklist.complete-task", { task: task.content || index + 1 })}
-                      onCheckedChange={(checked) =>
-                        updateDraft((current) => ({
-                          ...current,
-                          mustWinTasks: current.mustWinTasks.map((item) => (item.id === task.id ? { ...item, completed: checked } : item)),
-                        }))
-                      }
+                      aria-label={t(task.completed ? "daily-checklist.reopen-task" : "daily-checklist.complete-task", {
+                        task: task.content || index + 1,
+                      })}
+                      onCheckedChange={(checked) => handleTaskCompletion(task.id, task.content, checked)}
                     />
                     <Input
                       value={task.content}
                       readOnly={readonly}
                       aria-label={t("daily-checklist.task-number", { number: index + 1 })}
                       className={cn(
-                        "h-9 border-0 px-1 shadow-none focus-visible:ring-0",
+                        "h-9 border-border/70 bg-muted/20 px-2 shadow-none focus-visible:bg-background",
                         task.completed && "text-muted-foreground line-through",
                       )}
                       placeholder={readonly ? undefined : t("daily-checklist.placeholders.must-win-task")}
@@ -325,12 +362,12 @@ const ChecklistEditor = ({ checklist, date, name, username, readonly, onDateChan
                         }))
                       }
                     />
-                    {!readonly && draft.mustWinTasks.length > 1 && (
+                    {!readonly && (task.content.trim() || draft.mustWinTasks.length > 1) && (
                       <Button
                         type="button"
                         variant="ghost"
                         size="icon"
-                        className="size-10 text-muted-foreground hover:text-destructive sm:size-8 sm:opacity-0 sm:group-hover:opacity-100 sm:focus-visible:opacity-100"
+                        className="size-10 shrink-0 text-muted-foreground hover:text-destructive sm:size-8"
                         aria-label={t("daily-checklist.remove-task", { number: index + 1 })}
                         onClick={() =>
                           updateDraft((current) => ({
@@ -396,6 +433,16 @@ const ChecklistEditor = ({ checklist, date, name, username, readonly, onDateChan
           </div>
         </section>
       </div>
+      <ConfirmDialog
+        open={deleteOpen}
+        onOpenChange={setDeleteOpen}
+        title={t("daily-checklist.delete-confirm-title")}
+        description={t("daily-checklist.delete-confirm-description")}
+        confirmLabel={t("common.delete")}
+        cancelLabel={t("common.cancel")}
+        onConfirm={handleDeleteChecklist}
+        confirmVariant="destructive"
+      />
     </form>
   );
 };
