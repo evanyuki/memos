@@ -1,0 +1,101 @@
+syntax = "proto3";
+
+package memos.api.v1;
+
+import "api/v1/memo_service.proto";
+import "google/api/annotations.proto";
+import "google/api/client.proto";
+import "google/api/field_behavior.proto";
+import "google/api/resource.proto";
+import "google/protobuf/empty.proto";
+import "google/protobuf/timestamp.proto";
+
+option go_package = "gen/api/v1";
+
+service DailyChecklistService {
+  // GetDailyChecklist returns a checklist by resource name. Owners can read
+  // their private checklists; everyone can read public checklists.
+  rpc GetDailyChecklist(GetDailyChecklistRequest) returns (DailyChecklist) {
+    option (google.api.http) = {get: "/api/v1/{name=users/*/dailyChecklists/*}"};
+    option (google.api.method_signature) = "name";
+  }
+
+  // UpsertDailyChecklist creates or replaces the authenticated user's
+  // checklist for a calendar date.
+  rpc UpsertDailyChecklist(UpsertDailyChecklistRequest) returns (DailyChecklist) {
+    option (google.api.http) = {
+      put: "/api/v1/{daily_checklist.name=users/*/dailyChecklists/*}"
+      body: "daily_checklist"
+    };
+    option (google.api.method_signature) = "daily_checklist";
+  }
+
+  // DeleteDailyChecklist deletes the authenticated user's checklist.
+  rpc DeleteDailyChecklist(DeleteDailyChecklistRequest) returns (google.protobuf.Empty) {
+    option (google.api.http) = {delete: "/api/v1/{name=users/*/dailyChecklists/*}"};
+    option (google.api.method_signature) = "name";
+  }
+}
+
+message DailyChecklistTask {
+  // Stable client-generated identifier used to preserve task identity.
+  string id = 1 [(google.api.field_behavior) = REQUIRED];
+  string content = 2 [(google.api.field_behavior) = REQUIRED];
+  bool completed = 3;
+}
+
+message DailyChecklistTaskSection {
+  string first_task = 1;
+  string if_then = 2;
+  repeated DailyChecklistTask must_win_tasks = 3;
+  string notes = 4;
+}
+
+message DailyChecklistEveningReflection {
+  string most_effective_action = 1;
+  string biggest_obstacle = 2;
+  string obstacle_response = 3;
+  string keep_for_tomorrow = 4;
+  string remove_for_tomorrow = 5;
+  string first_task_tomorrow = 6;
+}
+
+message DailyChecklist {
+  option (google.api.resource) = {
+    type: "memos.api.v1/DailyChecklist"
+    pattern: "users/{user}/dailyChecklists/{daily_checklist}"
+    singular: "dailyChecklist"
+    plural: "dailyChecklists"
+  };
+
+  // Format: users/{user}/dailyChecklists/{YYYY-MM-DD}.
+  string name = 1 [(google.api.field_behavior) = IDENTIFIER];
+  // Format: users/{user}.
+  string creator = 2 [(google.api.field_behavior) = OUTPUT_ONLY];
+  // Local calendar date in YYYY-MM-DD format.
+  string date = 3 [(google.api.field_behavior) = REQUIRED];
+  google.protobuf.Timestamp create_time = 4 [(google.api.field_behavior) = OUTPUT_ONLY];
+  google.protobuf.Timestamp update_time = 5 [(google.api.field_behavior) = OUTPUT_ONLY];
+  // Only PRIVATE and PUBLIC are accepted for daily checklists.
+  Visibility visibility = 6 [(google.api.field_behavior) = REQUIRED];
+  DailyChecklistTaskSection task_section = 7;
+  DailyChecklistEveningReflection evening_reflection = 8;
+}
+
+message GetDailyChecklistRequest {
+  string name = 1 [
+    (google.api.field_behavior) = REQUIRED,
+    (google.api.resource_reference) = {type: "memos.api.v1/DailyChecklist"}
+  ];
+}
+
+message UpsertDailyChecklistRequest {
+  DailyChecklist daily_checklist = 1 [(google.api.field_behavior) = REQUIRED];
+}
+
+message DeleteDailyChecklistRequest {
+  string name = 1 [
+    (google.api.field_behavior) = REQUIRED,
+    (google.api.resource_reference) = {type: "memos.api.v1/DailyChecklist"}
+  ];
+}

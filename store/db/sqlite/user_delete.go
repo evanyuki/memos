@@ -114,6 +114,9 @@ func deleteUserTargetsTx(ctx context.Context, tx *sql.Tx, userID int32, targets 
 	if err := deleteUserSettingsTx(ctx, tx, userID); err != nil {
 		return err
 	}
+	if err := deleteDailyChecklistsByCreatorTx(ctx, tx, userID); err != nil {
+		return err
+	}
 	if err := deleteMemoRelationsTx(ctx, tx, memoIDs); err != nil {
 		return err
 	}

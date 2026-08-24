@@ -58,7 +58,7 @@ describe("router configuration", () => {
   });
 
   it("wraps authenticated-only pages in RequireAuthRoute", () => {
-    for (const path of [ROUTES.ARCHIVED, ROUTES.VIEWS, ROUTES.ATTACHMENTS, ROUTES.INBOX, ROUTES.SETTING]) {
+    for (const path of [ROUTES.ARCHIVED, ROUTES.DAILY_CHECKLIST, ROUTES.VIEWS, ROUTES.ATTACHMENTS, ROUTES.INBOX, ROUTES.SETTING]) {
       expect(hasAncestorOfType(routeConfig, path, RequireAuthRoute)).toBe(true);
     }
   });
@@ -77,7 +77,7 @@ describe("router configuration", () => {
   });
 
   it("leaves public pages outside RequireAuthRoute", () => {
-    for (const path of [ROUTES.ABOUT, ROUTES.EXPLORE, "memos/:uid", "memos/shares/:token", "u/:username"]) {
+    for (const path of [ROUTES.ABOUT, ROUTES.EXPLORE, "memos/:uid", "memos/shares/:token", "u/:username", "u/:username/daily-checklists/:date"]) {
       expect(hasAncestorOfType(routeConfig, path, RequireAuthRoute)).toBe(false);
     }
   });

@@ -2,12 +2,22 @@ import { matchPath } from "react-router-dom";
 import { isMemoScopeRoute, type MemoScope, resolveMemoScope } from "@/lib/memo-views";
 import { ROUTES } from "@/router/routes";
 
-export type SidebarRouteKind = MemoScope | "profile" | "views" | "attachments" | "inbox" | "settings" | "memo" | "empty";
+export type SidebarRouteKind =
+  | MemoScope
+  | "profile"
+  | "views"
+  | "daily-checklist"
+  | "attachments"
+  | "inbox"
+  | "settings"
+  | "memo"
+  | "empty";
 
 export const getSidebarRouteKind = (path: string): SidebarRouteKind => {
   if (isMemoScopeRoute(path)) return resolveMemoScope(path);
   if (matchPath("/u/:username", path)) return "profile";
   if (path === ROUTES.VIEWS) return "views";
+  if (path === ROUTES.DAILY_CHECKLIST || matchPath("/u/:username/daily-checklists/:date", path)) return "daily-checklist";
   if (path === ROUTES.ATTACHMENTS) return "attachments";
   if (path === ROUTES.INBOX) return "inbox";
   if (path === ROUTES.SETTING) return "settings";

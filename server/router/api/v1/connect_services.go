@@ -570,6 +570,32 @@ func (s *ConnectServiceHandler) DeleteMemoView(ctx context.Context, req *connect
 	return connect.NewResponse(resp), nil
 }
 
+// DailyChecklistService
+
+func (s *ConnectServiceHandler) GetDailyChecklist(ctx context.Context, req *connect.Request[v1pb.GetDailyChecklistRequest]) (*connect.Response[v1pb.DailyChecklist], error) {
+	resp, err := s.APIV1Service.GetDailyChecklist(ctx, req.Msg)
+	if err != nil {
+		return nil, convertGRPCError(err)
+	}
+	return connect.NewResponse(resp), nil
+}
+
+func (s *ConnectServiceHandler) UpsertDailyChecklist(ctx context.Context, req *connect.Request[v1pb.UpsertDailyChecklistRequest]) (*connect.Response[v1pb.DailyChecklist], error) {
+	resp, err := s.APIV1Service.UpsertDailyChecklist(ctx, req.Msg)
+	if err != nil {
+		return nil, convertGRPCError(err)
+	}
+	return connect.NewResponse(resp), nil
+}
+
+func (s *ConnectServiceHandler) DeleteDailyChecklist(ctx context.Context, req *connect.Request[v1pb.DeleteDailyChecklistRequest]) (*connect.Response[emptypb.Empty], error) {
+	resp, err := s.APIV1Service.DeleteDailyChecklist(ctx, req.Msg)
+	if err != nil {
+		return nil, convertGRPCError(err)
+	}
+	return connect.NewResponse(resp), nil
+}
+
 // IdentityProviderService
 
 func (s *ConnectServiceHandler) ListIdentityProviders(ctx context.Context, req *connect.Request[v1pb.ListIdentityProvidersRequest]) (*connect.Response[v1pb.ListIdentityProvidersResponse], error) {

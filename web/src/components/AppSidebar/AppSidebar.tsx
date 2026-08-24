@@ -4,6 +4,7 @@ import {
   ArchiveIcon,
   ArrowRightIcon,
   BellIcon,
+  CalendarCheck2Icon,
   ChevronDownIcon,
   EarthIcon,
   FileAudioIcon,
@@ -469,6 +470,13 @@ const GlobalNavigation = () => {
 
   const items: GlobalNavItem[] = currentUser
     ? [
+        {
+          id: "daily-checklist",
+          label: t("daily-checklist.title"),
+          path: ROUTES.DAILY_CHECKLIST,
+          icon: CalendarCheck2Icon,
+          active: routeKind === "daily-checklist",
+        },
         {
           id: "attachments",
           label: t("common.attachments"),

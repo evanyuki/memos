@@ -180,6 +180,12 @@ func TestDeleteUserCleansRelatedData(t *testing.T) {
 		Description: "delete user pat",
 	})
 	require.NoError(t, err)
+	_, err = ts.UpsertDailyChecklist(ctx, &store.DailyChecklist{
+		CreatorID: user.ID,
+		Date:      "2026-08-24",
+		Payload:   &storepb.DailyChecklistPayload{},
+	})
+	require.NoError(t, err)
 
 	_, err = ts.DeleteUser(ctx, &store.DeleteUser{ID: user.ID})
 	require.NoError(t, err)
@@ -245,4 +251,7 @@ func TestDeleteUserCleansRelatedData(t *testing.T) {
 	})
 	require.NoError(t, err)
 	require.Nil(t, setting)
+	checklist, err := ts.GetDailyChecklist(ctx, &store.FindDailyChecklist{CreatorID: user.ID, Date: "2026-08-24"})
+	require.NoError(t, err)
+	require.Nil(t, checklist)
 }

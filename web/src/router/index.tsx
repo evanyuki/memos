@@ -29,6 +29,7 @@ const MemoViews = lazyWithReload(() => import("@/pages/MemoViews"));
 const SignIn = lazyWithReload(() => import("@/pages/SignIn"));
 const SignUp = lazyWithReload(() => import("@/pages/SignUp"));
 const UserProfile = lazyWithReload(() => import("@/pages/UserProfile"));
+const DailyChecklist = lazyWithReload(() => import("@/pages/DailyChecklist"));
 
 // Backward compatibility alias.
 export const Routes = ROUTES;
@@ -85,10 +86,12 @@ export const routeConfig: RouteObject[] = [
               },
               { path: Routes.EXPLORE, element: <Explore /> },
               { path: "u/:username", element: <UserProfile /> },
+              { path: "u/:username/daily-checklists/:date", element: <DailyChecklist /> },
               {
                 element: <RequireAuthRoute />,
                 children: [
                   { path: Routes.ARCHIVED, element: <Archived /> },
+                  { path: Routes.DAILY_CHECKLIST, element: <DailyChecklist /> },
                   {
                     element: <RequireFullInitializationRoute />,
                     children: [{ path: Routes.VIEWS, element: <MemoViews /> }],

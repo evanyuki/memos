@@ -80,6 +80,11 @@ type Driver interface {
 	GetMemoShare(ctx context.Context, find *FindMemoShare) (*MemoShare, error)
 	DeleteMemoShare(ctx context.Context, delete *DeleteMemoShare) error
 
+	// DailyChecklist model related methods.
+	UpsertDailyChecklist(ctx context.Context, upsert *DailyChecklist) (*DailyChecklist, error)
+	GetDailyChecklist(ctx context.Context, find *FindDailyChecklist) (*DailyChecklist, error)
+	DeleteDailyChecklist(ctx context.Context, delete *DeleteDailyChecklist) error
+
 	// UserIdentity model related methods.
 	CreateUserIdentity(ctx context.Context, create *UserIdentity) (*UserIdentity, error)
 	CreateUserWithIdentity(ctx context.Context, createUser *User, createIdentity *UserIdentity) (*User, error)

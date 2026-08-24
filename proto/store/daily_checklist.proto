@@ -1,0 +1,32 @@
+syntax = "proto3";
+
+package memos.store;
+
+option go_package = "gen/store";
+
+message DailyChecklistPayload {
+  message Task {
+    string id = 1;
+    string content = 2;
+    bool completed = 3;
+  }
+
+  message TaskSection {
+    string first_task = 1;
+    string if_then = 2;
+    repeated Task must_win_tasks = 3;
+    string notes = 4;
+  }
+
+  message EveningReflection {
+    string most_effective_action = 1;
+    string biggest_obstacle = 2;
+    string obstacle_response = 3;
+    string keep_for_tomorrow = 4;
+    string remove_for_tomorrow = 5;
+    string first_task_tomorrow = 6;
+  }
+
+  TaskSection task_section = 1;
+  EveningReflection evening_reflection = 2;
+}

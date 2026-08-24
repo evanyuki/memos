@@ -37,6 +37,8 @@ func TestPublicMethodsArePublic(t *testing.T) {
 		"/memos.api.v1.MemoService/BatchGetLinkMetadata",
 		// Attachment Service metadata follows linked memo visibility.
 		"/memos.api.v1.AttachmentService/GetAttachment",
+		// Daily Checklist Service
+		"/memos.api.v1.DailyChecklistService/GetDailyChecklist",
 	}
 
 	for _, method := range publicMethods {
@@ -72,6 +74,9 @@ func TestProtectedMethodsRequireAuth(t *testing.T) {
 		"/memos.api.v1.MemoViewService/ListMemoViews",
 		"/memos.api.v1.MemoViewService/UpdateMemoView",
 		"/memos.api.v1.MemoViewService/DeleteMemoView",
+		// Daily Checklist Service - writes require authentication.
+		"/memos.api.v1.DailyChecklistService/UpsertDailyChecklist",
+		"/memos.api.v1.DailyChecklistService/DeleteDailyChecklist",
 	}
 
 	for _, method := range protectedMethods {
@@ -140,6 +145,7 @@ func TestAuthBootstrapClassification(t *testing.T) {
 		"/memos.api.v1.AttachmentService/GetAttachment",
 		"/memos.api.v1.UserService/GetUser",
 		"/memos.api.v1.UserService/ListAllUserStats",
+		"/memos.api.v1.DailyChecklistService/GetDailyChecklist",
 	}
 	for _, method := range gatedWhilePrivate {
 		t.Run("gated/"+method, func(t *testing.T) {
