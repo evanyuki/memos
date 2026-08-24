@@ -24,6 +24,7 @@ export interface DailyChecklistDraft {
   obstacleResponse: string;
   keepForTomorrow: string;
   removeForTomorrow: string;
+  // Kept to round-trip existing API data; new plans live on the date they belong to.
   firstTaskTomorrow: string;
   visibility: Visibility;
 }
@@ -41,7 +42,7 @@ export interface DailyChecklistProgress {
   tasksAllCompleted: boolean;
   reflectionCompleted: number;
   reflectionComplete: boolean;
-  reflectionTotal: 6;
+  reflectionTotal: 5;
 }
 
 export const createDailyChecklistTaskDraft = (): DailyChecklistTaskDraft => ({
@@ -121,7 +122,6 @@ export const getDailyChecklistProgress = (
     draft.obstacleResponse,
     draft.keepForTomorrow,
     draft.removeForTomorrow,
-    draft.firstTaskTomorrow,
   ];
   const planCompleted = Number(Boolean(draft.firstTask.trim())) + Number(Boolean(draft.ifThen.trim())) + Number(tasks.length > 0);
   const tasksCompleted = tasks.filter((task) => task.completed).length;
@@ -150,7 +150,7 @@ export const getDailyChecklistProgress = (
     tasksAllCompleted,
     reflectionCompleted,
     reflectionComplete,
-    reflectionTotal: 6,
+    reflectionTotal: 5,
   };
 };
 

@@ -881,9 +881,8 @@
     "evening-reflection-description": "趁今天的感受还清晰，完成一次简短复盘。",
     "execution-description": "保持下一步清晰可见，逐项推进今天真正重要的结果。",
     "execution-title": "计划与执行",
-    "eyebrow": "每日练习",
     "fields": {
-      "first-task": "开工第一步",
+      "first-task": "启动动作",
       "if-then": "If–then 计划",
       "must-win-tasks": "今日必胜（1–3 项）",
       "notes": "补充说明（可选）",
@@ -891,17 +890,16 @@
       "biggest-obstacle": "今天最大的阻力来自哪里？",
       "obstacle-response": "我是如何应对的，实际是否有效？",
       "keep-for-tomorrow": "明天继续保留哪个有效动作？",
-      "remove-for-tomorrow": "明天停止、删除或缩减什么？",
-      "first-task-tomorrow": "明天第一个 5–15 分钟行动是什么？"
+      "remove-for-tomorrow": "明天停止、删除或缩减什么？"
     },
     "helpers": {
-      "first-task": "写下打开工作后 5–15 分钟内可以立即开始的具体动作。",
+      "first-task": "这不是另一项任务，而是启动一项必胜结果的最小动作，控制在 5–15 分钟内。",
       "if-then": "写清可能出现的触发情境和应对动作：如果……，那么我就……",
       "must-win-tasks": "选择 1–3 个今天结束时可验证的具体结果。",
       "notes": "可选填写背景、限制或能帮助执行的提醒。"
     },
     "if-then-reminder": "阻力出现时",
-    "incomplete-plan-description": "一份可执行的每日计划需要第一个动作、If–then 预案和至少一项必胜任务。",
+    "incomplete-plan-description": "一份可执行的每日计划需要启动动作、If–then 预案和至少一项必胜结果。",
     "incomplete-plan-title": "计划还需要完善",
     "link-copied": "公开链接已复制",
     "load-error": "无法加载每日清单",
@@ -914,7 +912,6 @@
     "placeholders": {
       "biggest-obstacle": "是时间、注意力、信息、精力，还是其他因素？",
       "first-task": "例如：打开方案文档，列出三个待确认问题",
-      "first-task-tomorrow": "例如：打开清单，先完成最小的启动步骤",
       "if-then": "如果完成任务前分心，那么我就…",
       "keep-for-tomorrow": "值得在明天继续保留的行为",
       "most-effective-action": "最直接推动结果向前的那个动作",
@@ -923,7 +920,8 @@
       "obstacle-response": "当时采取了什么行动，实际是否有效？",
       "remove-for-tomorrow": "明天要停止、拒绝或简化什么？"
     },
-    "plan-description": "先定义今天必须赢下的结果，再明确开工动作和阻力预案。",
+    "plan-description": "先定义今天必须赢下的结果，再为其中一项确定最小启动动作。",
+    "plan-next-day": "规划下一天",
     "plan-progress": "计划完整度",
     "plan-progress-count": "计划 {{completed}} / {{total}}",
     "plan-title": "开始今天",
@@ -938,7 +936,7 @@
       "task-result": "任务结果：已完成 {{completed}} / {{total}}",
       "today-description": "分清真正有效的动作，以及影响今天的阻力。",
       "today-title": "回顾今天",
-      "tomorrow-description": "把今天的证据转化为更小、更明确的明日计划。",
+      "tomorrow-description": "只决定明天继续什么、停止什么；具体任务留到下一天的清单中规划。",
       "tomorrow-title": "准备明天",
       "unfinished-tasks": "未完成：{{tasks}}"
     },

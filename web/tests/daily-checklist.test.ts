@@ -6,8 +6,8 @@ import { createMemoryRouter, RouterProvider } from "react-router-dom";
 import { describe, expect, it, vi } from "vitest";
 import { useDailyChecklist } from "@/hooks/useDailyChecklistQueries";
 import {
-  type DailyChecklistDraft,
   createEmptyDailyChecklistDraft,
+  type DailyChecklistDraft,
   dailyChecklistFromDraft,
   getDailyChecklistProgress,
   getLocalDateString,
@@ -83,7 +83,7 @@ describe("daily checklist model", () => {
     clients.upsertDailyChecklist.mockImplementation(async ({ dailyChecklist }) => dailyChecklist);
     const checklistDraft = draft();
     checklistDraft.mustWinTasks[0].completed = false;
-    checklistDraft.firstTaskTomorrow = "";
+    checklistDraft.removeForTomorrow = "";
     const checklist = dailyChecklistFromDraft("users/test/dailyChecklists/2026-08-24", "2026-08-24", checklistDraft);
     const queryClient = new QueryClient({ defaultOptions: { mutations: { retry: false } } });
 
@@ -135,7 +135,7 @@ describe("daily checklist model", () => {
     clients.upsertDailyChecklist.mockRejectedValueOnce(new ConnectError("save failed", Code.Unavailable));
     const checklistDraft = draft();
     checklistDraft.mustWinTasks[0].completed = false;
-    checklistDraft.firstTaskTomorrow = "";
+    checklistDraft.removeForTomorrow = "";
     const checklist = dailyChecklistFromDraft("users/test/dailyChecklists/2026-08-24", "2026-08-24", checklistDraft);
     const queryClient = new QueryClient({ defaultOptions: { mutations: { retry: false } } });
 
@@ -186,6 +186,7 @@ describe("daily checklist model", () => {
   it("renders a closed checklist as a summary while keeping explicit edit actions", () => {
     const checklist = dailyChecklistFromDraft("users/test/dailyChecklists/2026-08-24", "2026-08-24", draft());
     const queryClient = new QueryClient();
+    const onDateChange = vi.fn();
 
     render(
       createElement(
@@ -197,20 +198,23 @@ describe("daily checklist model", () => {
           name: checklist.name,
           readonly: false,
           username: "test",
+          onDateChange,
         }),
       ),
     );
 
     expect(screen.getByText("daily-checklist.states.closed")).toBeInTheDocument();
-    expect(screen.getByText("daily-checklist.plan-progress-count")).toBeInTheDocument();
+    expect(screen.queryByText("daily-checklist.eyebrow")).not.toBeInTheDocument();
+    expect(screen.queryByText("daily-checklist.plan-progress-count")).not.toBeInTheDocument();
     expect(screen.queryByRole("checkbox")).not.toBeInTheDocument();
     expect(screen.getByRole("button", { name: "daily-checklist.adjust-plan" })).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "daily-checklist.edit-reflection" })).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: "daily-checklist.plan-next-day" }));
+    expect(onDateChange).toHaveBeenCalledWith("2026-08-25");
   });
 
   it("limits a new daily plan to three must-win results", () => {
     const checklistDraft = draft();
-    checklistDraft.firstTaskTomorrow = "";
     checklistDraft.mustWinTasks[1].content = "Second result";
     const checklist = dailyChecklistFromDraft("users/test/dailyChecklists/2026-08-24", "2026-08-24", checklistDraft);
     const queryClient = new QueryClient();
@@ -240,7 +244,7 @@ describe("daily checklist model", () => {
     clients.upsertDailyChecklist.mockClear();
     clients.upsertDailyChecklist.mockImplementation(async ({ dailyChecklist }) => dailyChecklist);
     const checklistDraft = draft();
-    checklistDraft.firstTaskTomorrow = "";
+    checklistDraft.removeForTomorrow = "";
     const checklist = dailyChecklistFromDraft("users/test/dailyChecklists/2026-08-24", "2026-08-24", checklistDraft);
     const queryClient = new QueryClient({ defaultOptions: { mutations: { retry: false } } });
 
@@ -262,18 +266,18 @@ describe("daily checklist model", () => {
     expect(screen.queryByRole("checkbox")).not.toBeInTheDocument();
     expect(screen.getByText("daily-checklist.reflection.today-title")).toBeInTheDocument();
     expect(screen.getByText("daily-checklist.reflection.tomorrow-title")).toBeInTheDocument();
+    expect(screen.queryByLabelText(/daily-checklist\.fields\.first-task-tomorrow/)).not.toBeInTheDocument();
 
-    fireEvent.change(screen.getByLabelText(/daily-checklist\.fields\.first-task-tomorrow/), { target: { value: "Open the plan" } });
+    fireEvent.change(screen.getByLabelText(/daily-checklist\.fields\.remove-for-tomorrow/), { target: { value: "Late meetings" } });
 
     expect(screen.getByText("daily-checklist.states.reflection_due")).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "daily-checklist.save-and-close" })).toBeEnabled();
-    expect(screen.getByLabelText(/daily-checklist\.fields\.first-task-tomorrow/)).toBeInTheDocument();
     expect(clients.upsertDailyChecklist).not.toHaveBeenCalled();
 
     fireEvent.click(screen.getByRole("button", { name: "daily-checklist.save-and-close" }));
 
     await waitFor(() => expect(screen.getByText("daily-checklist.states.closed")).toBeInTheDocument());
-    expect(screen.queryByLabelText(/daily-checklist\.fields\.first-task-tomorrow/)).not.toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "daily-checklist.plan-next-day" })).toBeInTheDocument();
   });
 
   it("blocks checklist navigation while the plan has unsaved changes", async () => {
@@ -311,6 +315,7 @@ describe("daily checklist model", () => {
     expect(checklist.taskSection?.mustWinTasks).toHaveLength(1);
     expect(checklist.taskSection?.mustWinTasks[0]).toMatchObject({ id: "task-1", content: "Ship it", completed: true });
     expect(checklist.eveningReflection?.mostEffectiveAction).toBe("Focus block");
+    expect(checklist.eveningReflection?.firstTaskTomorrow).toBe("Open the plan");
   });
 
   it("validates real calendar dates", () => {
@@ -354,11 +359,11 @@ describe("daily checklist model", () => {
     empty.obstacleResponse = "Moved rooms";
     empty.keepForTomorrow = "Focus block";
     empty.removeForTomorrow = "Notifications";
-    empty.firstTaskTomorrow = "Open the plan";
     expect(getDailyChecklistProgress(empty, "2026-08-24", "2026-08-24")).toMatchObject({
       state: "closed",
       tasksAllCompleted: false,
       reflectionComplete: true,
+      reflectionTotal: 5,
     });
   });
 });

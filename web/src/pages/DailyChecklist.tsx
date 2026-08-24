@@ -11,7 +11,6 @@ import {
   PlusIcon,
   SaveIcon,
   Share2Icon,
-  TargetIcon,
   Trash2Icon,
 } from "lucide-react";
 import { type FormEvent, type ReactNode, useEffect, useState } from "react";
@@ -60,7 +59,7 @@ const MAX_DAILY_MUST_WIN_TASKS = 3;
 
 type ReflectionKey = keyof Pick<
   DailyChecklistDraft,
-  "mostEffectiveAction" | "biggestObstacle" | "obstacleResponse" | "keepForTomorrow" | "removeForTomorrow" | "firstTaskTomorrow"
+  "mostEffectiveAction" | "biggestObstacle" | "obstacleResponse" | "keepForTomorrow" | "removeForTomorrow"
 >;
 
 interface ReflectionField {
@@ -111,11 +110,6 @@ const reflectionGroups: ReflectionGroup[] = [
         labelKey: "daily-checklist.fields.remove-for-tomorrow",
         placeholderKey: "daily-checklist.placeholders.remove-for-tomorrow",
       },
-      {
-        key: "firstTaskTomorrow",
-        labelKey: "daily-checklist.fields.first-task-tomorrow",
-        placeholderKey: "daily-checklist.placeholders.first-task-tomorrow",
-      },
     ],
   },
 ];
@@ -123,36 +117,24 @@ const reflectionGroups: ReflectionGroup[] = [
 const formatChecklistDate = (date: string, locale: string) =>
   new Intl.DateTimeFormat(locale, { weekday: "long", year: "numeric", month: "long", day: "numeric" }).format(new Date(`${date}T12:00:00`));
 
-const ProgressMeter = ({ completed, total, label }: { completed: number; total: number; label: string }) => (
-  <div className="space-y-1.5">
-    <div className="flex items-center justify-between gap-3 text-xs text-muted-foreground">
-      <span>{label}</span>
-      <span className="tabular-nums">
-        {completed}/{total}
+const SectionProgress = ({ completed, total, label }: { completed: number; total: number; label: string }) => {
+  const complete = completed === total;
+  return (
+    <span className={cn("flex items-center gap-1.5 text-xs font-medium", complete ? "text-primary" : "text-muted-foreground")}>
+      {complete ? <CheckCircle2Icon className="size-4" aria-hidden="true" /> : <CircleIcon className="size-4" aria-hidden="true" />}
+      <span>
+        {label} {completed}/{total}
       </span>
-    </div>
-    <div
-      className="h-1.5 overflow-hidden rounded-full bg-muted"
-      role="progressbar"
-      aria-label={label}
-      aria-valuemin={0}
-      aria-valuemax={total}
-      aria-valuenow={completed}
-    >
-      <div
-        className="h-full rounded-full bg-primary transition-[width] motion-reduce:transition-none"
-        style={{ width: `${total ? (completed / total) * 100 : 0}%` }}
-      />
-    </div>
-  </div>
-);
+    </span>
+  );
+};
 
 const stateStyles: Record<DailyChecklistState, string> = {
-  draft: "border-warning/40 bg-warning/10 text-warning",
-  planned: "border-primary/30 bg-primary/10 text-primary",
+  draft: "border-border bg-muted/40 text-muted-foreground",
+  planned: "border-border bg-background text-foreground",
   active: "border-primary/30 bg-primary/10 text-primary",
-  reflection_due: "border-warning/40 bg-warning/10 text-warning",
-  closed: "border-success/35 bg-success/10 text-success",
+  reflection_due: "border-border bg-muted/40 text-foreground",
+  closed: "border-primary/30 bg-primary/10 text-primary",
 };
 
 const ChecklistStateBadge = ({ state }: { state: DailyChecklistState }) => {
@@ -175,130 +157,110 @@ const PlanEditor = ({ draft, progress, updateDraft }: PlanEditorProps) => {
   const t = useTranslate();
   const [notesOpen, setNotesOpen] = useState(Boolean(draft.notes.trim()));
   return (
-    <section
-      className={cn(
-        "rounded-2xl border bg-card p-4 shadow-xs sm:p-6",
-        !progress.hasContent ? "border-dashed border-border" : "border-border",
-      )}
-      aria-labelledby="task-section-title"
-    >
-      <div className="mb-6 grid gap-4 sm:grid-cols-[minmax(0,1fr)_12rem] sm:items-end">
+    <section className="rounded-xl border border-border bg-card p-4 sm:p-6" aria-labelledby="task-section-title">
+      <div className="mb-6 flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
         <div>
-          <p className="text-xs font-semibold uppercase tracking-[0.16em] text-primary">01</p>
-          <h2 id="task-section-title" className="mt-1 text-xl font-semibold">
+          <h2 id="task-section-title" className="text-xl font-semibold">
             {t("daily-checklist.plan-title")}
           </h2>
           <p className="mt-1 text-sm text-muted-foreground">{t("daily-checklist.plan-description")}</p>
         </div>
-        <ProgressMeter completed={progress.planCompleted} total={progress.planTotal} label={t("daily-checklist.plan-progress")} />
+        <SectionProgress completed={progress.planCompleted} total={progress.planTotal} label={t("daily-checklist.plan-progress")} />
       </div>
 
-      <div className="space-y-6">
-        <fieldset className="grid gap-3 sm:grid-cols-[2rem_minmax(0,1fr)]">
-          <span className="flex size-8 items-center justify-center rounded-full bg-primary/10 text-sm font-semibold text-primary">1</span>
-          <div className="space-y-3">
-            <div className="flex items-start justify-between gap-3">
-              <div>
-                <legend className="text-sm font-medium">{t("daily-checklist.fields.must-win-tasks")}</legend>
-                <p className="mt-1 text-xs text-muted-foreground">{t("daily-checklist.helpers.must-win-tasks")}</p>
-              </div>
-              {draft.mustWinTasks.length < MAX_DAILY_MUST_WIN_TASKS && (
-                <Button
-                  type="button"
-                  variant="ghost"
-                  className="h-11 px-2 sm:h-8"
-                  onClick={() =>
-                    updateDraft((current) => ({ ...current, mustWinTasks: [...current.mustWinTasks, createDailyChecklistTaskDraft()] }))
-                  }
-                >
-                  <PlusIcon aria-hidden="true" />
-                  {t("daily-checklist.add-task")}
-                </Button>
-              )}
+      <div className="divide-y divide-border/70">
+        <fieldset className="space-y-3 pb-6">
+          <div className="flex items-start justify-between gap-3">
+            <div>
+              <legend className="text-sm font-medium">{t("daily-checklist.fields.must-win-tasks")}</legend>
+              <p className="mt-1 text-xs text-muted-foreground">{t("daily-checklist.helpers.must-win-tasks")}</p>
             </div>
-            <div className="space-y-2" role="list">
-              {draft.mustWinTasks.map((task, index) => (
-                <div
-                  key={task.id}
-                  role="listitem"
-                  className="group flex min-h-12 items-center gap-2 rounded-lg border border-border bg-background px-3 focus-within:border-ring focus-within:ring-2 focus-within:ring-ring/30"
-                >
-                  <CircleIcon className="size-4 shrink-0 text-muted-foreground/50" aria-hidden="true" />
-                  <Input
-                    value={task.content}
-                    aria-label={t("daily-checklist.task-number", { number: index + 1 })}
-                    className="h-10 scroll-mt-24 border-0 bg-transparent px-1 shadow-none focus-visible:ring-0"
-                    maxLength={500}
-                    placeholder={t("daily-checklist.placeholders.must-win-task")}
-                    onChange={(event) =>
+            {draft.mustWinTasks.length < MAX_DAILY_MUST_WIN_TASKS && (
+              <Button
+                type="button"
+                variant="ghost"
+                className="h-11 px-2 sm:h-8"
+                onClick={() =>
+                  updateDraft((current) => ({ ...current, mustWinTasks: [...current.mustWinTasks, createDailyChecklistTaskDraft()] }))
+                }
+              >
+                <PlusIcon aria-hidden="true" />
+                {t("daily-checklist.add-task")}
+              </Button>
+            )}
+          </div>
+          <div className="space-y-2" role="list">
+            {draft.mustWinTasks.map((task, index) => (
+              <div
+                key={task.id}
+                role="listitem"
+                className="group flex min-h-12 items-center gap-2 rounded-lg border border-border bg-background px-3 focus-within:border-ring focus-within:ring-2 focus-within:ring-ring/30"
+              >
+                <CircleIcon className="size-4 shrink-0 text-muted-foreground/50" aria-hidden="true" />
+                <Input
+                  value={task.content}
+                  aria-label={t("daily-checklist.task-number", { number: index + 1 })}
+                  className="h-10 scroll-mt-24 border-0 bg-transparent px-1 shadow-none focus-visible:ring-0"
+                  maxLength={500}
+                  placeholder={t("daily-checklist.placeholders.must-win-task")}
+                  onChange={(event) =>
+                    updateDraft((current) => ({
+                      ...current,
+                      mustWinTasks: current.mustWinTasks.map((item) =>
+                        item.id === task.id ? { ...item, content: event.target.value } : item,
+                      ),
+                    }))
+                  }
+                />
+                {(task.content.trim() || draft.mustWinTasks.length > 1) && (
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    size="icon"
+                    className="size-11 shrink-0 text-muted-foreground hover:text-destructive sm:size-8"
+                    aria-label={t("daily-checklist.remove-task", { number: index + 1 })}
+                    onClick={() =>
                       updateDraft((current) => ({
                         ...current,
-                        mustWinTasks: current.mustWinTasks.map((item) =>
-                          item.id === task.id ? { ...item, content: event.target.value } : item,
-                        ),
+                        mustWinTasks: current.mustWinTasks.filter((item) => item.id !== task.id),
                       }))
                     }
-                  />
-                  {(task.content.trim() || draft.mustWinTasks.length > 1) && (
-                    <Button
-                      type="button"
-                      variant="ghost"
-                      size="icon"
-                      className="size-11 shrink-0 text-muted-foreground hover:text-destructive sm:size-8"
-                      aria-label={t("daily-checklist.remove-task", { number: index + 1 })}
-                      onClick={() =>
-                        updateDraft((current) => ({
-                          ...current,
-                          mustWinTasks: current.mustWinTasks.filter((item) => item.id !== task.id),
-                        }))
-                      }
-                    >
-                      <Trash2Icon aria-hidden="true" />
-                    </Button>
-                  )}
-                </div>
-              ))}
-            </div>
+                  >
+                    <Trash2Icon aria-hidden="true" />
+                  </Button>
+                )}
+              </div>
+            ))}
           </div>
         </fieldset>
 
-        <div className="grid gap-3 sm:grid-cols-[2rem_minmax(0,1fr)]">
-          <span className="flex size-8 items-center justify-center rounded-full bg-primary/10 text-sm font-semibold text-primary">2</span>
-          <div className="space-y-2">
-            <Label htmlFor="daily-first-task">{t("daily-checklist.fields.first-task")}</Label>
-            <p className="text-xs text-muted-foreground">{t("daily-checklist.helpers.first-task")}</p>
-            <Input
-              id="daily-first-task"
-              value={draft.firstTask}
-              className="h-11 scroll-mt-24"
-              maxLength={500}
-              placeholder={t("daily-checklist.placeholders.first-task")}
-              onChange={(event) => updateDraft((current) => ({ ...current, firstTask: event.target.value }))}
-            />
-          </div>
+        <div className="space-y-2 py-6">
+          <Label htmlFor="daily-first-task">{t("daily-checklist.fields.first-task")}</Label>
+          <p className="text-xs text-muted-foreground">{t("daily-checklist.helpers.first-task")}</p>
+          <Input
+            id="daily-first-task"
+            value={draft.firstTask}
+            className="h-11 scroll-mt-24"
+            maxLength={500}
+            placeholder={t("daily-checklist.placeholders.first-task")}
+            onChange={(event) => updateDraft((current) => ({ ...current, firstTask: event.target.value }))}
+          />
         </div>
 
-        <div className="grid gap-3 sm:grid-cols-[2rem_minmax(0,1fr)]">
-          <span className="flex size-8 items-center justify-center rounded-full bg-primary/10 text-sm font-semibold text-primary">3</span>
-          <div className="space-y-2">
-            <Label htmlFor="daily-if-then">{t("daily-checklist.fields.if-then")}</Label>
-            <p className="text-xs text-muted-foreground">{t("daily-checklist.helpers.if-then")}</p>
-            <Textarea
-              id="daily-if-then"
-              value={draft.ifThen}
-              className="min-h-24 scroll-mt-24 resize-y"
-              maxLength={1000}
-              placeholder={t("daily-checklist.placeholders.if-then")}
-              onChange={(event) => updateDraft((current) => ({ ...current, ifThen: event.target.value }))}
-            />
-          </div>
+        <div className="space-y-2 py-6">
+          <Label htmlFor="daily-if-then">{t("daily-checklist.fields.if-then")}</Label>
+          <p className="text-xs text-muted-foreground">{t("daily-checklist.helpers.if-then")}</p>
+          <Textarea
+            id="daily-if-then"
+            value={draft.ifThen}
+            className="min-h-24 scroll-mt-24 resize-y"
+            maxLength={1000}
+            placeholder={t("daily-checklist.placeholders.if-then")}
+            onChange={(event) => updateDraft((current) => ({ ...current, ifThen: event.target.value }))}
+          />
         </div>
 
-        <details
-          open={notesOpen}
-          className="group/notes border-t border-border/70 pt-3"
-          onToggle={(event) => setNotesOpen(event.currentTarget.open)}
-        >
+        <details open={notesOpen} className="group/notes pt-3" onToggle={(event) => setNotesOpen(event.currentTarget.open)}>
           <summary className="flex min-h-11 cursor-pointer list-none items-center rounded-md text-sm font-medium focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/50 [&::-webkit-details-marker]:hidden">
             {t("daily-checklist.fields.notes")}
             <ChevronRightIcon
@@ -344,7 +306,7 @@ const TaskResultList = ({ draft, progress, readonly, savingTaskId, onTaskComplet
         <span
           className={cn(
             "flex items-center gap-1 text-xs font-medium",
-            progress.tasksAllCompleted ? "text-success" : "text-muted-foreground",
+            progress.tasksAllCompleted ? "text-primary" : "text-muted-foreground",
           )}
           role="status"
           aria-live="polite"
@@ -364,12 +326,12 @@ const TaskResultList = ({ draft, progress, readonly, savingTaskId, onTaskComplet
               role="listitem"
               className={cn(
                 "flex min-h-12 items-center gap-3 rounded-lg border px-3 py-2 transition-colors",
-                task.completed ? "border-success/25 bg-success/5" : "border-border bg-background",
+                task.completed ? "border-border bg-muted/30" : "border-border bg-background",
               )}
             >
               {readonly ? (
                 task.completed ? (
-                  <CheckCircle2Icon className="size-5 shrink-0 text-success" aria-hidden="true" />
+                  <CheckCircle2Icon className="size-5 shrink-0 text-primary" aria-hidden="true" />
                 ) : (
                   <CircleIcon className="size-5 shrink-0 text-muted-foreground/60" aria-hidden="true" />
                 )
@@ -402,11 +364,10 @@ interface PlanExecutionProps extends TaskResultListProps {
 const PlanExecution = ({ draft, progress, readonly, savingTaskId, onTaskCompletion, onEdit }: PlanExecutionProps) => {
   const t = useTranslate();
   return (
-    <section className="rounded-2xl border border-border bg-card p-4 shadow-xs sm:p-6" aria-labelledby="execution-title">
+    <section className="rounded-xl border border-border bg-card p-4 sm:p-6" aria-labelledby="execution-title">
       <div className="mb-5 flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
         <div>
-          <p className="text-xs font-semibold uppercase tracking-[0.16em] text-primary">01</p>
-          <h2 id="execution-title" className="mt-1 text-xl font-semibold">
+          <h2 id="execution-title" className="text-xl font-semibold">
             {t("daily-checklist.execution-title")}
           </h2>
           <p className="mt-1 text-sm text-muted-foreground">{t("daily-checklist.execution-description")}</p>
@@ -422,12 +383,9 @@ const PlanExecution = ({ draft, progress, readonly, savingTaskId, onTaskCompleti
       <div className="grid items-start gap-5 lg:grid-cols-[minmax(0,1fr)_minmax(14rem,0.45fr)]">
         <div className="space-y-5">
           {draft.firstTask.trim() && (
-            <div className="rounded-xl border border-primary/25 bg-primary/5 p-4">
-              <div className="mb-2 flex items-center gap-2 text-xs font-semibold uppercase tracking-[0.12em] text-primary">
-                <TargetIcon className="size-4" aria-hidden="true" />
-                {t("daily-checklist.fields.first-task")}
-              </div>
-              <p className="break-words text-lg font-semibold leading-7">{draft.firstTask}</p>
+            <div className="border-l-2 border-primary pl-4">
+              <p className="text-xs font-medium text-muted-foreground">{t("daily-checklist.fields.first-task")}</p>
+              <p className="mt-1 break-words text-lg font-semibold leading-7">{draft.firstTask}</p>
             </div>
           )}
           <TaskResultList
@@ -441,13 +399,13 @@ const PlanExecution = ({ draft, progress, readonly, savingTaskId, onTaskCompleti
 
         <aside className="space-y-4">
           {draft.ifThen.trim() && (
-            <div className="rounded-xl border border-warning/25 bg-warning/5 p-4">
+            <div className="rounded-lg border border-border bg-muted/20 p-4">
               <h3 className="text-sm font-semibold">{t("daily-checklist.if-then-reminder")}</h3>
               <p className="mt-2 whitespace-pre-wrap break-words text-sm leading-6 text-muted-foreground">{draft.ifThen}</p>
             </div>
           )}
           {draft.notes.trim() && (
-            <div className="rounded-xl border border-border bg-muted/30 p-4">
+            <div className="rounded-lg border border-border bg-muted/20 p-4">
               <h3 className="text-sm font-semibold">{t("daily-checklist.fields.notes")}</h3>
               <p className="mt-2 whitespace-pre-wrap break-words text-sm leading-6 text-muted-foreground">{draft.notes}</p>
             </div>
@@ -467,23 +425,22 @@ interface ReflectionEditorProps {
 const ReflectionEditor = ({ draft, progress, updateDraft }: ReflectionEditorProps) => {
   const t = useTranslate();
   return (
-    <section className="rounded-2xl border border-border bg-card p-4 shadow-xs sm:p-6" aria-labelledby="reflection-section-title">
-      <div className="mb-6 grid gap-4 sm:grid-cols-[minmax(0,1fr)_12rem] sm:items-end">
+    <section className="rounded-xl border border-border bg-card p-4 sm:p-6" aria-labelledby="reflection-section-title">
+      <div className="mb-6 flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
         <div>
-          <p className="text-xs font-semibold uppercase tracking-[0.16em] text-primary">02</p>
-          <h2 id="reflection-section-title" className="mt-1 text-xl font-semibold">
+          <h2 id="reflection-section-title" className="text-xl font-semibold">
             {t("daily-checklist.evening-reflection")}
           </h2>
           <p className="mt-1 text-sm text-muted-foreground">{t("daily-checklist.evening-reflection-description")}</p>
         </div>
-        <ProgressMeter
+        <SectionProgress
           completed={progress.reflectionCompleted}
           total={progress.reflectionTotal}
           label={t("daily-checklist.reflection-progress")}
         />
       </div>
 
-      <div className="mb-6 rounded-xl border border-border bg-muted/25 p-4">
+      <div className="mb-6 rounded-lg bg-muted/30 p-4">
         <p className="text-sm font-medium">
           {t("daily-checklist.reflection.task-result", { completed: progress.tasksCompleted, total: progress.tasksTotal })}
         </p>
@@ -517,7 +474,7 @@ const ReflectionEditor = ({ draft, progress, updateDraft }: ReflectionEditorProp
                 <div key={field.key} className="space-y-2">
                   <Label htmlFor={`daily-reflection-${field.key}`} className="flex items-start gap-2 leading-5">
                     {draft[field.key].trim() ? (
-                      <CheckCircle2Icon className="mt-0.5 size-4 shrink-0 text-success" aria-hidden="true" />
+                      <CheckCircle2Icon className="mt-0.5 size-4 shrink-0 text-primary" aria-hidden="true" />
                     ) : (
                       <CircleIcon className="mt-0.5 size-4 shrink-0 text-muted-foreground/60" aria-hidden="true" />
                     )}
@@ -548,11 +505,10 @@ const ReflectionPrompt = ({ progress, onEdit }: { progress: DailyChecklistProgre
   const t = useTranslate();
   const started = progress.reflectionCompleted > 0;
   return (
-    <section className="rounded-2xl border border-dashed border-border bg-card p-5 sm:p-6" aria-labelledby="reflection-prompt-title">
+    <section className="rounded-xl border border-border bg-card p-5 sm:p-6" aria-labelledby="reflection-prompt-title">
       <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
         <div>
-          <p className="text-xs font-semibold uppercase tracking-[0.16em] text-primary">02</p>
-          <h2 id="reflection-prompt-title" className="mt-1 text-lg font-semibold">
+          <h2 id="reflection-prompt-title" className="text-lg font-semibold">
             {t("daily-checklist.evening-reflection")}
           </h2>
           <p className="mt-1 text-sm text-muted-foreground">
@@ -576,9 +532,8 @@ const ReflectionPrompt = ({ progress, onEdit }: { progress: DailyChecklistProgre
 const PlannedReflectionNotice = () => {
   const t = useTranslate();
   return (
-    <section className="rounded-2xl border border-dashed border-border bg-muted/20 p-5 sm:p-6">
-      <p className="text-xs font-semibold uppercase tracking-[0.16em] text-primary">02</p>
-      <h2 className="mt-1 text-lg font-semibold">{t("daily-checklist.evening-reflection")}</h2>
+    <section className="rounded-xl border border-border bg-muted/20 p-5 sm:p-6">
+      <h2 className="text-lg font-semibold">{t("daily-checklist.evening-reflection")}</h2>
       <p className="mt-1 text-sm text-muted-foreground">{t("daily-checklist.reflection.future-description")}</p>
     </section>
   );
@@ -587,6 +542,7 @@ const PlannedReflectionNotice = () => {
 interface ChecklistSummaryProps extends TaskResultListProps {
   onEditPlan?: () => void;
   onEditReflection?: () => void;
+  onPlanNextDay?: () => void;
 }
 
 const ChecklistSummary = ({
@@ -597,6 +553,7 @@ const ChecklistSummary = ({
   onTaskCompletion,
   onEditPlan,
   onEditReflection,
+  onPlanNextDay,
 }: ChecklistSummaryProps) => {
   const t = useTranslate();
   const hasPlan = Boolean(draft.firstTask.trim() || draft.ifThen.trim() || progress.tasksTotal || draft.notes.trim());
@@ -605,11 +562,10 @@ const ChecklistSummary = ({
   return (
     <div className="space-y-5">
       {hasPlan && (
-        <section className="rounded-2xl border border-border bg-card p-4 shadow-xs sm:p-6" aria-labelledby="summary-plan-title">
+        <section className="rounded-xl border border-border bg-card p-4 sm:p-6" aria-labelledby="summary-plan-title">
           <div className="mb-5 flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
             <div>
-              <p className="text-xs font-semibold uppercase tracking-[0.16em] text-success">01</p>
-              <h2 id="summary-plan-title" className="mt-1 text-xl font-semibold">
+              <h2 id="summary-plan-title" className="text-xl font-semibold">
                 {t("daily-checklist.result-title")}
               </h2>
               <p className="mt-1 text-sm text-muted-foreground">
@@ -624,9 +580,9 @@ const ChecklistSummary = ({
             )}
           </div>
           {draft.firstTask.trim() && (
-            <div className="mb-5 rounded-xl border border-primary/20 bg-primary/5 p-4">
-              <p className="text-xs font-semibold uppercase tracking-[0.12em] text-primary">{t("daily-checklist.fields.first-task")}</p>
-              <p className="mt-2 break-words text-lg font-semibold">{draft.firstTask}</p>
+            <div className="mb-5 border-l-2 border-primary pl-4">
+              <p className="text-xs font-medium text-muted-foreground">{t("daily-checklist.fields.first-task")}</p>
+              <p className="mt-1 break-words text-lg font-semibold">{draft.firstTask}</p>
             </div>
           )}
           <TaskResultList
@@ -639,13 +595,13 @@ const ChecklistSummary = ({
           {(draft.ifThen.trim() || draft.notes.trim()) && (
             <div className="mt-5 grid gap-4 sm:grid-cols-2">
               {draft.ifThen.trim() && (
-                <div className="rounded-xl border border-warning/25 bg-warning/5 p-4">
+                <div className="rounded-lg border border-border bg-muted/20 p-4">
                   <h3 className="text-sm font-semibold">{t("daily-checklist.if-then-reminder")}</h3>
                   <p className="mt-2 whitespace-pre-wrap break-words text-sm leading-6 text-muted-foreground">{draft.ifThen}</p>
                 </div>
               )}
               {draft.notes.trim() && (
-                <div className="rounded-xl border border-border bg-muted/25 p-4">
+                <div className="rounded-lg border border-border bg-muted/20 p-4">
                   <h3 className="text-sm font-semibold">{t("daily-checklist.fields.notes")}</h3>
                   <p className="mt-2 whitespace-pre-wrap break-words text-sm leading-6 text-muted-foreground">{draft.notes}</p>
                 </div>
@@ -656,22 +612,28 @@ const ChecklistSummary = ({
       )}
 
       {hasReflection && (
-        <section
-          className="rounded-2xl border border-success/25 bg-success/5 p-4 shadow-xs sm:p-6"
-          aria-labelledby="summary-reflection-title"
-        >
+        <section className="rounded-xl border border-border bg-card p-4 sm:p-6" aria-labelledby="summary-reflection-title">
           <div className="mb-6 flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
             <div>
-              <p className="text-xs font-semibold uppercase tracking-[0.16em] text-success">02</p>
-              <h2 id="summary-reflection-title" className="mt-1 text-xl font-semibold">
+              <h2 id="summary-reflection-title" className="text-xl font-semibold">
                 {t("daily-checklist.reflection-summary-title")}
               </h2>
             </div>
-            {!readonly && onEditReflection && (
-              <Button type="button" variant="ghost" className="h-11 sm:h-8" onClick={onEditReflection}>
-                <PencilIcon aria-hidden="true" />
-                {t("daily-checklist.edit-reflection")}
-              </Button>
+            {!readonly && (
+              <div className="flex flex-wrap gap-2">
+                {onEditReflection && (
+                  <Button type="button" variant="ghost" className="h-11 sm:h-8" onClick={onEditReflection}>
+                    <PencilIcon aria-hidden="true" />
+                    {t("daily-checklist.edit-reflection")}
+                  </Button>
+                )}
+                {onPlanNextDay && (
+                  <Button type="button" className="h-11 sm:h-8" onClick={onPlanNextDay}>
+                    {t("daily-checklist.plan-next-day")}
+                    <ChevronRightIcon aria-hidden="true" />
+                  </Button>
+                )}
+              </div>
             )}
           </div>
           <div className="grid gap-5 lg:grid-cols-2">
@@ -679,7 +641,7 @@ const ChecklistSummary = ({
               const visibleFields = group.fields.filter((field) => draft[field.key].trim());
               if (visibleFields.length === 0) return null;
               return (
-                <section key={group.titleKey} className="rounded-xl border border-border/70 bg-background/75 p-4">
+                <section key={group.titleKey} className="rounded-lg bg-muted/20 p-4">
                   <h3 className="font-semibold">{t(group.titleKey)}</h3>
                   <dl className="mt-4 space-y-4">
                     {visibleFields.map((field) => (
@@ -863,6 +825,7 @@ export const ChecklistEditor = ({ checklist, date, name, username, readonly, onD
       onTaskCompletion={handleTaskCompletion}
       onEditPlan={() => setEditingSection("plan")}
       onEditReflection={() => setEditingSection("reflection")}
+      onPlanNextDay={() => onDateChange?.(shiftDailyChecklistDate(date, 1))}
     />
   ) : savedProgress.planReady ? (
     <div className="space-y-5">
@@ -881,7 +844,7 @@ export const ChecklistEditor = ({ checklist, date, name, username, readonly, onD
       )}
     </div>
   ) : (
-    <section className="rounded-2xl border border-warning/30 bg-warning/5 p-6 text-center">
+    <section className="rounded-xl border border-border bg-card p-6 text-center">
       <h2 className="font-semibold">{t("daily-checklist.incomplete-plan-title")}</h2>
       <p className="mx-auto mt-2 max-w-lg text-sm text-muted-foreground">{t("daily-checklist.incomplete-plan-description")}</p>
       <Button type="button" className="mt-4 h-11 sm:h-9" onClick={() => setEditingSection("plan")}>
@@ -894,32 +857,18 @@ export const ChecklistEditor = ({ checklist, date, name, username, readonly, onD
     <div className="mx-auto flex w-full max-w-5xl flex-col gap-5 pb-20">
       <header className="flex flex-col gap-4 border-b border-border/70 pb-5 sm:flex-row sm:items-end sm:justify-between">
         <div className="min-w-0">
-          <div className="mb-2 flex items-center gap-2 text-sm font-medium text-primary">
-            <CalendarCheck2Icon className="size-4" aria-hidden="true" />
-            <span>{t("daily-checklist.eyebrow")}</span>
-          </div>
           <h1 className="text-balance text-2xl font-semibold tracking-tight sm:text-3xl">{t("daily-checklist.title")}</h1>
           <p className="mt-1 text-sm text-muted-foreground">{formatChecklistDate(date, i18n.language)}</p>
           <div className="mt-3 flex flex-wrap items-center gap-x-4 gap-y-2">
             <ChecklistStateBadge state={savedProgress.state} />
-            <span className="text-xs font-medium text-muted-foreground">
-              {t("daily-checklist.plan-progress-count", {
-                completed: savedProgress.planCompleted,
-                total: savedProgress.planTotal,
-              })}
-            </span>
-            <span className="text-xs font-medium text-muted-foreground">
-              {t("daily-checklist.task-progress", {
-                completed: savedProgress.tasksCompleted,
-                total: savedProgress.tasksTotal,
-              })}
-            </span>
-            <span className="text-xs font-medium text-muted-foreground">
-              {t("daily-checklist.reflection-progress-count", {
-                completed: savedProgress.reflectionCompleted,
-                total: savedProgress.reflectionTotal,
-              })}
-            </span>
+            {savedProgress.tasksTotal > 0 && (
+              <span className="text-xs font-medium text-muted-foreground">
+                {t("daily-checklist.task-progress", {
+                  completed: savedProgress.tasksCompleted,
+                  total: savedProgress.tasksTotal,
+                })}
+              </span>
+            )}
           </div>
         </div>
 
@@ -996,7 +945,7 @@ export const ChecklistEditor = ({ checklist, date, name, username, readonly, onD
                 )}
               </DropdownMenuContent>
             </DropdownMenu>
-            <span className={cn("text-xs", dirty ? "font-medium text-warning" : "text-muted-foreground")}>{statusLabel}</span>
+            <span className={cn("text-xs", dirty ? "font-medium text-foreground" : "text-muted-foreground")}>{statusLabel}</span>
           </div>
 
           <div className="flex flex-wrap items-center justify-end gap-2">
