@@ -888,7 +888,7 @@
       "notes": "补充说明（可选）",
       "most-effective-action": "哪个具体动作最推动今天的结果？",
       "biggest-obstacle": "今天最大的阻力来自哪里？",
-      "obstacle-response": "我是如何应对的，实际是否有效？",
+      "obstacle-response": "阻力出现时，我是否执行了预案？结果怎样？",
       "keep-for-tomorrow": "明天继续保留哪个有效动作？",
       "remove-for-tomorrow": "明天停止、删除或缩减什么？"
     },
@@ -917,7 +917,7 @@
       "most-effective-action": "最直接推动结果向前的那个动作",
       "must-win-task": "完成后便不负今天的任务",
       "notes": "补充背景、限制或提醒",
-      "obstacle-response": "当时采取了什么行动，实际是否有效？",
+      "obstacle-response": "阻力是否出现？当时有没有执行上面的预案，结果如何？",
       "remove-for-tomorrow": "明天要停止、拒绝或简化什么？"
     },
     "plan-description": "先定义今天必须赢下的结果，再为其中一项确定最小启动动作。",

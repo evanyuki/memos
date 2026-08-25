@@ -483,6 +483,12 @@ const ReflectionEditor = ({ draft, progress, updateDraft }: ReflectionEditorProp
                       {t(field.labelKey)}
                     </span>
                   </Label>
+                  {field.key === "obstacleResponse" && draft.ifThen.trim() && (
+                    <div className="rounded-lg border border-border bg-muted/20 p-3">
+                      <p className="text-xs font-medium text-muted-foreground">{t("daily-checklist.if-then-reminder")}</p>
+                      <p className="mt-1 whitespace-pre-wrap break-words text-sm leading-6">{draft.ifThen}</p>
+                    </div>
+                  )}
                   <Textarea
                     id={`daily-reflection-${field.key}`}
                     value={draft[field.key]}
@@ -558,7 +564,6 @@ const ChecklistSummary = ({
   const t = useTranslate();
   const hasPlan = Boolean(draft.firstTask.trim() || draft.ifThen.trim() || progress.tasksTotal || draft.notes.trim());
   const hasReflection = progress.reflectionCompleted > 0;
-  const tasksReadonly = readonly || progress.state === "closed";
   return (
     <div className="space-y-5">
       {hasPlan && (
@@ -588,7 +593,7 @@ const ChecklistSummary = ({
           <TaskResultList
             draft={draft}
             progress={progress}
-            readonly={tasksReadonly}
+            readonly={readonly}
             savingTaskId={savingTaskId}
             onTaskCompletion={onTaskCompletion}
           />

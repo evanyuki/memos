@@ -9,7 +9,7 @@ const Checkbox = React.forwardRef<HTMLSpanElement, CheckboxPrimitive.Root.Props>
       ref={ref}
       data-slot="checkbox"
       className={cn(
-        "peer border-border data-checked:bg-primary data-checked:text-primary-foreground data-checked:border-primary size-4 shrink-0 rounded-[4px] border shadow-xs transition-shadow data-disabled:cursor-not-allowed data-disabled:opacity-50",
+        "peer border-border data-checked:bg-primary data-checked:text-primary-foreground data-checked:border-primary inline-flex size-4 shrink-0 items-center justify-center rounded-[4px] border shadow-xs transition-shadow data-disabled:cursor-not-allowed data-disabled:opacity-50",
         className,
       )}
       {...props}

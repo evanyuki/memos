@@ -979,7 +979,7 @@
       "notes": "補充說明（可選）",
       "most-effective-action": "哪個具體動作最推動今天的結果？",
       "biggest-obstacle": "今天最大的阻力來自哪裡？",
-      "obstacle-response": "我是如何應對的，實際是否有效？",
+      "obstacle-response": "阻力出現時，我是否執行了預案？結果怎樣？",
       "keep-for-tomorrow": "明天繼續保留哪個有效動作？",
       "remove-for-tomorrow": "明天停止、刪除或縮減什麼？"
     },
@@ -1008,7 +1008,7 @@
       "most-effective-action": "最直接推動結果向前的那個動作",
       "must-win-task": "完成後便不負今天的任務",
       "notes": "補充背景、限制或提醒",
-      "obstacle-response": "當時採取了什麼行動，實際是否有效？",
+      "obstacle-response": "阻力是否出現？當時有沒有執行上面的預案，結果如何？",
       "remove-for-tomorrow": "明天要停止、拒絕或簡化什麼？"
     },
     "plan-description": "先定義今天必須贏下的結果，再為其中一項確定最小啟動動作。",

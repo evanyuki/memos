@@ -183,9 +183,11 @@ describe("daily checklist model", () => {
     expect(screen.queryByRole("checkbox")).not.toBeInTheDocument();
   });
 
-  it("renders a closed checklist as a summary while keeping explicit edit actions", () => {
+  it("keeps task completion available after closing the reflection", async () => {
+    clients.upsertDailyChecklist.mockClear();
+    clients.upsertDailyChecklist.mockImplementation(async ({ dailyChecklist }) => dailyChecklist);
     const checklist = dailyChecklistFromDraft("users/test/dailyChecklists/2026-08-24", "2026-08-24", draft());
-    const queryClient = new QueryClient();
+    const queryClient = new QueryClient({ defaultOptions: { mutations: { retry: false } } });
     const onDateChange = vi.fn();
 
     render(
@@ -206,7 +208,16 @@ describe("daily checklist model", () => {
     expect(screen.getByText("daily-checklist.states.closed")).toBeInTheDocument();
     expect(screen.queryByText("daily-checklist.eyebrow")).not.toBeInTheDocument();
     expect(screen.queryByText("daily-checklist.plan-progress-count")).not.toBeInTheDocument();
-    expect(screen.queryByRole("checkbox")).not.toBeInTheDocument();
+    const task = screen.getByRole("checkbox");
+    expect(task).toBeChecked();
+    fireEvent.click(task);
+    await waitFor(() =>
+      expect(clients.upsertDailyChecklist).toHaveBeenCalledWith({
+        dailyChecklist: expect.objectContaining({
+          taskSection: expect.objectContaining({ mustWinTasks: [expect.objectContaining({ content: "Ship it", completed: false })] }),
+        }),
+      }),
+    );
     expect(screen.getByRole("button", { name: "daily-checklist.adjust-plan" })).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "daily-checklist.edit-reflection" })).toBeInTheDocument();
     fireEvent.click(screen.getByRole("button", { name: "daily-checklist.plan-next-day" }));
@@ -266,6 +277,9 @@ describe("daily checklist model", () => {
     expect(screen.queryByRole("checkbox")).not.toBeInTheDocument();
     expect(screen.getByText("daily-checklist.reflection.today-title")).toBeInTheDocument();
     expect(screen.getByText("daily-checklist.reflection.tomorrow-title")).toBeInTheDocument();
+    expect(screen.getByLabelText(/daily-checklist\.fields\.obstacle-response/).parentElement).toHaveTextContent(
+      "If distracted, close the feed",
+    );
     expect(screen.queryByLabelText(/daily-checklist\.fields\.first-task-tomorrow/)).not.toBeInTheDocument();
 
     fireEvent.change(screen.getByLabelText(/daily-checklist\.fields\.remove-for-tomorrow/), { target: { value: "Late meetings" } });

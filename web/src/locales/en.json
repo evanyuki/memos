@@ -974,7 +974,7 @@
       "notes": "Additional context (optional)",
       "most-effective-action": "Which specific action moved today's result forward most?",
       "biggest-obstacle": "Where did today's biggest obstacle come from?",
-      "obstacle-response": "How did I respond, and did it actually work?",
+      "obstacle-response": "When resistance appeared, did I follow the plan, and what happened?",
       "keep-for-tomorrow": "Which effective action will I keep tomorrow?",
       "remove-for-tomorrow": "What will I stop, remove, or reduce tomorrow?"
     },
@@ -1003,7 +1003,7 @@
       "most-effective-action": "The action that most directly moved the result forward",
       "must-win-task": "A task that makes today count",
       "notes": "Context, constraints, or reminders",
-      "obstacle-response": "What I did, and whether it actually helped",
+      "obstacle-response": "Did resistance appear? Note whether you followed the if–then plan and what happened",
       "remove-for-tomorrow": "What I will stop, decline, or simplify"
     },
     "plan-description": "Define today's results, then choose the smallest action that gets one moving.",
