@@ -363,8 +363,17 @@ type PhotoMetadata struct {
 	ExposureTimeSeconds   *float64               `protobuf:"fixed64,8,opt,name=exposure_time_seconds,json=exposureTimeSeconds,proto3,oneof" json:"exposure_time_seconds,omitempty"`
 	Iso                   *int32                 `protobuf:"varint,9,opt,name=iso,proto3,oneof" json:"iso,omitempty"`
 	FocalLengthMm         *float64               `protobuf:"fixed64,10,opt,name=focal_length_mm,json=focalLengthMm,proto3,oneof" json:"focal_length_mm,omitempty"`
-	unknownFields         protoimpl.UnknownFields
-	sizeCache             protoimpl.SizeCache
+	ExposureBiasEv        *float64               `protobuf:"fixed64,11,opt,name=exposure_bias_ev,json=exposureBiasEv,proto3,oneof" json:"exposure_bias_ev,omitempty"`
+	ExposureProgram       string                 `protobuf:"bytes,12,opt,name=exposure_program,json=exposureProgram,proto3" json:"exposure_program,omitempty"`
+	MeteringMode          string                 `protobuf:"bytes,13,opt,name=metering_mode,json=meteringMode,proto3" json:"metering_mode,omitempty"`
+	WhiteBalance          string                 `protobuf:"bytes,14,opt,name=white_balance,json=whiteBalance,proto3" json:"white_balance,omitempty"`
+	ColorSpace            string                 `protobuf:"bytes,15,opt,name=color_space,json=colorSpace,proto3" json:"color_space,omitempty"`
+	// Human-readable description from an embedded ICC profile, when available.
+	IccProfile       string   `protobuf:"bytes,16,opt,name=icc_profile,json=iccProfile,proto3" json:"icc_profile,omitempty"`
+	BitsPerSample    *int32   `protobuf:"varint,17,opt,name=bits_per_sample,json=bitsPerSample,proto3,oneof" json:"bits_per_sample,omitempty"`
+	FocalLength_35Mm *float64 `protobuf:"fixed64,18,opt,name=focal_length_35mm,json=focalLength35mm,proto3,oneof" json:"focal_length_35mm,omitempty"`
+	unknownFields    protoimpl.UnknownFields
+	sizeCache        protoimpl.SizeCache
 }
 
 func (x *PhotoMetadata) Reset() {
@@ -463,6 +472,62 @@ func (x *PhotoMetadata) GetIso() int32 {
 func (x *PhotoMetadata) GetFocalLengthMm() float64 {
 	if x != nil && x.FocalLengthMm != nil {
 		return *x.FocalLengthMm
+	}
+	return 0
+}
+
+func (x *PhotoMetadata) GetExposureBiasEv() float64 {
+	if x != nil && x.ExposureBiasEv != nil {
+		return *x.ExposureBiasEv
+	}
+	return 0
+}
+
+func (x *PhotoMetadata) GetExposureProgram() string {
+	if x != nil {
+		return x.ExposureProgram
+	}
+	return ""
+}
+
+func (x *PhotoMetadata) GetMeteringMode() string {
+	if x != nil {
+		return x.MeteringMode
+	}
+	return ""
+}
+
+func (x *PhotoMetadata) GetWhiteBalance() string {
+	if x != nil {
+		return x.WhiteBalance
+	}
+	return ""
+}
+
+func (x *PhotoMetadata) GetColorSpace() string {
+	if x != nil {
+		return x.ColorSpace
+	}
+	return ""
+}
+
+func (x *PhotoMetadata) GetIccProfile() string {
+	if x != nil {
+		return x.IccProfile
+	}
+	return ""
+}
+
+func (x *PhotoMetadata) GetBitsPerSample() int32 {
+	if x != nil && x.BitsPerSample != nil {
+		return *x.BitsPerSample
+	}
+	return 0
+}
+
+func (x *PhotoMetadata) GetFocalLength_35Mm() float64 {
+	if x != nil && x.FocalLength_35Mm != nil {
+		return *x.FocalLength_35Mm
 	}
 	return 0
 }
@@ -787,7 +852,7 @@ const file_store_attachment_proto_rawDesc = "" +
 	"\x05video\x18\x04 \x01(\v2\x1a.memos.store.VideoMetadataH\x00R\x05videoB\t\n" +
 	"\adetailsB\b\n" +
 	"\x06_widthB\t\n" +
-	"\a_height\"\xa5\x04\n" +
+	"\a_height\"\xa8\a\n" +
 	"\rPhotoMetadata\x12@\n" +
 	"\fcapture_time\x18\x01 \x01(\v2\x1d.memos.store.MediaCaptureTimeR\vcaptureTime\x126\n" +
 	"\blocation\x18\x02 \x01(\v2\x1a.memos.store.MediaLocationR\blocation\x12;\n" +
@@ -801,12 +866,25 @@ const file_store_attachment_proto_rawDesc = "" +
 	"\x15exposure_time_seconds\x18\b \x01(\x01H\x02R\x13exposureTimeSeconds\x88\x01\x01\x12\x15\n" +
 	"\x03iso\x18\t \x01(\x05H\x03R\x03iso\x88\x01\x01\x12+\n" +
 	"\x0ffocal_length_mm\x18\n" +
-	" \x01(\x01H\x04R\rfocalLengthMm\x88\x01\x01B\x1a\n" +
+	" \x01(\x01H\x04R\rfocalLengthMm\x88\x01\x01\x12-\n" +
+	"\x10exposure_bias_ev\x18\v \x01(\x01H\x05R\x0eexposureBiasEv\x88\x01\x01\x12)\n" +
+	"\x10exposure_program\x18\f \x01(\tR\x0fexposureProgram\x12#\n" +
+	"\rmetering_mode\x18\r \x01(\tR\fmeteringMode\x12#\n" +
+	"\rwhite_balance\x18\x0e \x01(\tR\fwhiteBalance\x12\x1f\n" +
+	"\vcolor_space\x18\x0f \x01(\tR\n" +
+	"colorSpace\x12\x1f\n" +
+	"\vicc_profile\x18\x10 \x01(\tR\n" +
+	"iccProfile\x12+\n" +
+	"\x0fbits_per_sample\x18\x11 \x01(\x05H\x06R\rbitsPerSample\x88\x01\x01\x12/\n" +
+	"\x11focal_length_35mm\x18\x12 \x01(\x01H\aR\x0ffocalLength35mm\x88\x01\x01B\x1a\n" +
 	"\x18_source_exif_orientationB\v\n" +
 	"\t_f_numberB\x18\n" +
 	"\x16_exposure_time_secondsB\x06\n" +
 	"\x04_isoB\x12\n" +
-	"\x10_focal_length_mm\"m\n" +
+	"\x10_focal_length_mmB\x13\n" +
+	"\x11_exposure_bias_evB\x12\n" +
+	"\x10_bits_per_sampleB\x14\n" +
+	"\x12_focal_length_35mm\"m\n" +
 	"\x10MediaCaptureTime\x12&\n" +
 	"\x0flocal_date_time\x18\x01 \x01(\tR\rlocalDateTime\x12\"\n" +
 	"\n" +

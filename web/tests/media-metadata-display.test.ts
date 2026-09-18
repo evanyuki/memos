@@ -1,6 +1,11 @@
 import { create } from "@bufbuild/protobuf";
 import { describe, expect, it } from "vitest";
-import { AttachmentSchema, MediaMetadataSchema, VideoMetadataSchema } from "@/types/proto/api/v1/attachment_service_pb";
+import {
+  AttachmentSchema,
+  MediaMetadataSchema,
+  PhotoMetadataSchema,
+  VideoMetadataSchema,
+} from "@/types/proto/api/v1/attachment_service_pb";
 import { buildMediaMetadataDisplay, formatExposureTime, formatMediaDuration } from "@/utils/media-metadata";
 
 describe("media metadata display formatting", () => {
@@ -31,5 +36,38 @@ describe("media metadata display formatting", () => {
       duration: "0:13",
       hasSavedMetadata: true,
     });
+  });
+});
+
+describe("professional photo metadata", () => {
+  it("displays extracted color and exposure information without inventing missing values", () => {
+    const attachment = create(AttachmentSchema, {
+      mediaMetadata: create(MediaMetadataSchema, {
+        details: {
+          case: "photo",
+          value: create(PhotoMetadataSchema, {
+            colorSpace: "sRGB",
+            iccProfile: "Display P3",
+            bitsPerSample: 10,
+            whiteBalance: "Manual",
+            exposureBiasEv: 0,
+            focalLength35mm: 50,
+            exposureProgram: "Aperture priority",
+            meteringMode: "Multi-segment",
+          }),
+        },
+      }),
+    });
+    expect(buildMediaMetadataDisplay([attachment], "en")).toMatchObject({
+      colorSpace: "sRGB",
+      iccProfile: "Display P3",
+      bitDepth: "10",
+      whiteBalance: "Manual",
+      exposureBias: "0 EV",
+      focalLengthEquivalent: "50 mm",
+      exposureProgram: "Aperture priority",
+      meteringMode: "Multi-segment",
+    });
+    expect(buildMediaMetadataDisplay([create(AttachmentSchema)], "en").colorSpace).toBeUndefined();
   });
 });

@@ -10,6 +10,7 @@ import {
   type LucideIcon,
   MapIcon,
   MapPinIcon,
+  PaletteIcon,
   RotateCwIcon,
   ScanIcon,
   TimerIcon,
@@ -37,6 +38,7 @@ interface MediaMetadataDetailsProps {
   item: PreviewMediaItem;
   onClose: () => void;
   className?: string;
+  standalone?: boolean;
 }
 
 const DetailRow = ({ icon: Icon, label, value, secondary, action }: DetailRowProps) => (
@@ -72,7 +74,7 @@ const IconAction = ({ label, onClick, children }: { label: string; onClick: () =
   </Button>
 );
 
-const MediaMetadataDetails = ({ id, item, onClose, className }: MediaMetadataDetailsProps) => {
+const MediaMetadataDetails = ({ id, item, onClose, className, standalone = false }: MediaMetadataDetailsProps) => {
   const t = useTranslate();
   const [showMap, setShowMap] = useState(false);
   const [coordinatesCopied, setCoordinatesCopied] = useState(false);
@@ -112,7 +114,15 @@ const MediaMetadataDetails = ({ id, item, onClose, className }: MediaMetadataDet
 
   const hasFileDetails = Boolean(details.file || details.dimensions || details.duration || details.uploaded);
   const hasCaptureDetails = Boolean(details.captured);
-  const hasCameraDetails = Boolean(details.camera || details.lens || details.exposure);
+  const hasCameraDetails = Boolean(
+    details.camera ||
+      details.lens ||
+      details.exposure ||
+      details.exposureBias ||
+      details.exposureProgram ||
+      details.meteringMode ||
+      details.focalLengthEquivalent,
+  );
 
   return (
     <aside
@@ -120,11 +130,17 @@ const MediaMetadataDetails = ({ id, item, onClose, className }: MediaMetadataDet
       aria-label={t("attachment-details.title")}
       className={cn(
         "absolute inset-x-0 bottom-0 z-40 flex max-h-[72vh] flex-col overflow-hidden rounded-t-2xl border-t border-white/10 bg-neutral-950/96 text-white shadow-2xl backdrop-blur-xl lg:inset-y-0 lg:left-auto lg:w-[22rem] lg:max-h-none lg:rounded-none lg:border-l lg:border-t-0 lg:bg-black/82",
+        standalone && "max-h-full",
         className,
       )}
     >
       <div className="mx-auto mt-2 h-1 w-8 rounded-full bg-white/18 lg:hidden" aria-hidden="true" />
-      <header className="flex shrink-0 items-center justify-between gap-3 border-b border-white/[0.08] px-4 pb-3 pt-3 lg:pt-20">
+      <header
+        className={cn(
+          "flex shrink-0 items-center justify-between gap-3 border-b border-white/[0.08] px-4 pb-3 pt-3",
+          !standalone && "lg:pt-20",
+        )}
+      >
         <div>
           <h2 className="text-sm font-medium text-white/92">{t("attachment-details.title")}</h2>
           <p className="mt-0.5 max-w-[16rem] truncate text-xs text-white/42">{item.filename}</p>
@@ -132,7 +148,10 @@ const MediaMetadataDetails = ({ id, item, onClose, className }: MediaMetadataDet
         <button
           type="button"
           onClick={onClose}
-          className="inline-flex size-8 items-center justify-center rounded-full text-white/55 hover:bg-white/[0.08] hover:text-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white/45 lg:hidden"
+          className={cn(
+            "inline-flex size-8 items-center justify-center rounded-full text-white/55 hover:bg-white/[0.08] hover:text-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white/45",
+            !standalone && "lg:hidden",
+          )}
           aria-label={t("attachment-details.actions.hide")}
         >
           <XIcon className="size-4" aria-hidden="true" />
@@ -178,6 +197,23 @@ const MediaMetadataDetails = ({ id, item, onClose, className }: MediaMetadataDet
               {details.exposure && (
                 <DetailRow icon={ApertureIcon} label={t("attachment-details.fields.exposure")} value={details.exposure} />
               )}
+              {details.exposureBias && <DetailRow icon={ApertureIcon} label={t("gallery.exposure-bias")} value={details.exposureBias} />}
+              {details.exposureProgram && (
+                <DetailRow icon={CameraIcon} label={t("gallery.exposure-program")} value={details.exposureProgram} />
+              )}
+              {details.meteringMode && <DetailRow icon={FocusIcon} label={t("gallery.metering-mode")} value={details.meteringMode} />}
+              {details.focalLengthEquivalent && (
+                <DetailRow icon={FocusIcon} label={t("gallery.focal-length-equivalent")} value={details.focalLengthEquivalent} />
+              )}
+            </DetailSection>
+          )}
+
+          {(details.colorSpace || details.iccProfile || details.bitDepth || details.whiteBalance) && (
+            <DetailSection title={t("gallery.colors")}>
+              {details.colorSpace && <DetailRow icon={PaletteIcon} label={t("gallery.color-space")} value={details.colorSpace} />}
+              {details.iccProfile && <DetailRow icon={PaletteIcon} label={t("gallery.icc-profile")} value={details.iccProfile} />}
+              {details.bitDepth && <DetailRow icon={PaletteIcon} label={t("gallery.bit-depth")} value={details.bitDepth} />}
+              {details.whiteBalance && <DetailRow icon={PaletteIcon} label={t("gallery.white-balance")} value={details.whiteBalance} />}
             </DetailSection>
           )}
 

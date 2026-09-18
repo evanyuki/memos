@@ -85,6 +85,40 @@ describe("mediaMetadataService", () => {
     expect(metadata.details.value.captureTime?.utcOffset).toBe("+08:00");
   });
 
+  it("indexes photographic color and exposure data without inferring missing values", async () => {
+    mocks.parseExif.mockResolvedValue({
+      ExposureCompensation: -1 / 3,
+      ExposureProgram: 3,
+      MeteringMode: 5,
+      WhiteBalance: 0,
+      ColorSpace: 1,
+      ProfileDescription: "Display P3\0",
+      BitsPerSample: [10, 10, 10],
+      FocalLengthIn35mmFormat: 50,
+    });
+    const metadata = await mediaMetadataService.extract(new File([new Uint8Array([1])], "photo.jpg", { type: "image/jpeg" }));
+    expect(metadata?.details.case).toBe("photo");
+    if (metadata?.details.case !== "photo") throw new Error("expected photo metadata");
+    expect(metadata.details.value).toMatchObject({
+      exposureBiasEv: -1 / 3,
+      exposureProgram: "Aperture-priority AE",
+      meteringMode: "Multi-segment",
+      whiteBalance: "Auto",
+      colorSpace: "sRGB",
+      iccProfile: "Display P3",
+      bitsPerSample: 10,
+      focalLength35mm: 50,
+    });
+    expect(mocks.parseExif).toHaveBeenCalledWith(expect.any(File), expect.objectContaining({ icc: true }));
+    expect(metadata.details.value.location).toBeUndefined();
+  });
+
+  it("leaves unknown color encodings absent", async () => {
+    mocks.parseExif.mockResolvedValue({ ColorSpace: 42, WhiteBalance: 42, ProfileDescription: "", BitsPerSample: 200 });
+    const metadata = await mediaMetadataService.extract(new File([new Uint8Array([1])], "photo.jpg", { type: "image/jpeg" }));
+    expect(metadata?.details.case).toBeUndefined();
+  });
+
   it("drops incomplete raw GPS coordinates instead of guessing their direction", async () => {
     mocks.parseExif.mockResolvedValue({
       GPSLatitude: [1, 21, 7.56],

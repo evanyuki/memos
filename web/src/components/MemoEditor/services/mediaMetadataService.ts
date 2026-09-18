@@ -36,6 +36,14 @@ const EXIF_TAGS = [
   "ExposureTime",
   "ISO",
   "FocalLength",
+  "FocalLengthIn35mmFormat",
+  "ExposureCompensation",
+  "ExposureProgram",
+  "MeteringMode",
+  "WhiteBalance",
+  "ColorSpace",
+  "BitsPerSample",
+  "ProfileDescription",
 ];
 const EXIF_PARSE_OPTIONS = {
   pick: EXIF_TAGS,
@@ -44,7 +52,7 @@ const EXIF_PARSE_OPTIONS = {
   makerNote: false,
   userComment: false,
   xmp: false,
-  icc: false,
+  icc: true,
   iptc: false,
   jfif: false,
   ihdr: false,
@@ -95,6 +103,33 @@ async function extractImageMetadata(file: File): Promise<MediaMetadata | undefin
     exposureTimeSeconds: normalizePositiveNumber(tags.ExposureTime),
     iso: normalizeInteger(tags.ISO, 1),
     focalLengthMm: normalizePositiveNumber(tags.FocalLength),
+    focalLength35mm: normalizePositiveNumber(tags.FocalLengthIn35mmFormat),
+    exposureBiasEv: normalizeFiniteNumber(tags.ExposureCompensation),
+    exposureProgram: readEnum(tags.ExposureProgram, {
+      0: "Not defined",
+      1: "Manual",
+      2: "Program AE",
+      3: "Aperture-priority AE",
+      4: "Shutter-priority AE",
+      5: "Creative",
+      6: "Action",
+      7: "Portrait",
+      8: "Landscape",
+    }),
+    meteringMode: readEnum(tags.MeteringMode, {
+      0: "Unknown",
+      1: "Average",
+      2: "Center-weighted average",
+      3: "Spot",
+      4: "Multi-spot",
+      5: "Multi-segment",
+      6: "Partial",
+      255: "Other",
+    }),
+    whiteBalance: readEnum(tags.WhiteBalance, { 0: "Auto", 1: "Manual" }),
+    colorSpace: readEnum(tags.ColorSpace, { 1: "sRGB", 2: "Adobe RGB", 65535: "Uncalibrated" }),
+    iccProfile: normalizeMetadataString(tags.ProfileDescription),
+    bitsPerSample: normalizeInteger(tags.BitsPerSample, 1, 64),
   };
   const hasPhotoDetails = Object.values(photoFields).some((value) => value !== undefined);
 
@@ -318,6 +353,11 @@ function normalizeFiniteNumber(value: unknown): number | undefined {
 function normalizePositiveNumber(value: unknown): number | undefined {
   const number = normalizeFiniteNumber(value);
   return number !== undefined && number > 0 ? number : undefined;
+}
+
+function readEnum(value: unknown, labels: Record<number, string>): string | undefined {
+  const key = normalizeInteger(value, 0);
+  return key === undefined ? undefined : labels[key];
 }
 
 function normalizeInteger(value: unknown, minimum: number, maximum = Number.MAX_SAFE_INTEGER): number | undefined {

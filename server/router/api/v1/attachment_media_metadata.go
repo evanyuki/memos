@@ -90,6 +90,11 @@ func validatePhotoMetadata(photo *v1pb.PhotoMetadata) error {
 		{"camera_make", photo.CameraMake},
 		{"camera_model", photo.CameraModel},
 		{"lens_model", photo.LensModel},
+		{"exposure_program", photo.ExposureProgram},
+		{"metering_mode", photo.MeteringMode},
+		{"white_balance", photo.WhiteBalance},
+		{"color_space", photo.ColorSpace},
+		{"icc_profile", photo.IccProfile},
 	} {
 		if field.value == "" {
 			continue
@@ -111,6 +116,7 @@ func validatePhotoMetadata(photo *v1pb.PhotoMetadata) error {
 		{"f_number", photo.FNumber},
 		{"exposure_time_seconds", photo.ExposureTimeSeconds},
 		{"focal_length_mm", photo.FocalLengthMm},
+		{"focal_length_35mm", photo.FocalLength_35Mm},
 	} {
 		if field.value != nil && (!isFinite(*field.value) || *field.value <= 0) {
 			return status.Errorf(codes.InvalidArgument, "photo %s must be a finite positive number", field.name)
@@ -118,6 +124,12 @@ func validatePhotoMetadata(photo *v1pb.PhotoMetadata) error {
 	}
 	if photo.Iso != nil && *photo.Iso <= 0 {
 		return status.Errorf(codes.InvalidArgument, "photo iso must be positive")
+	}
+	if photo.ExposureBiasEv != nil && !isFinite(*photo.ExposureBiasEv) {
+		return status.Errorf(codes.InvalidArgument, "photo exposure_bias_ev must be finite")
+	}
+	if photo.BitsPerSample != nil && (*photo.BitsPerSample < 1 || *photo.BitsPerSample > 64) {
+		return status.Errorf(codes.InvalidArgument, "photo bits_per_sample must be between 1 and 64")
 	}
 	if err := validateMediaCaptureTime(photo.CaptureTime); err != nil {
 		return err

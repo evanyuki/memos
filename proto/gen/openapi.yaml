@@ -2512,7 +2512,7 @@ components:
                 mediaMetadata:
                     allOf:
                         - $ref: '#/components/schemas/MediaMetadata'
-                    description: Optional. Immutable normalized media metadata explicitly supplied by the client at creation time.
+                    description: Optional. Immutable normalized media metadata captured at creation time.
         BatchDeleteAttachmentsRequest:
             required:
                 - names
@@ -3775,6 +3775,26 @@ components:
                     type: integer
                     format: int32
                 focalLengthMm:
+                    type: number
+                    format: double
+                exposureBiasEv:
+                    type: number
+                    format: double
+                exposureProgram:
+                    type: string
+                meteringMode:
+                    type: string
+                whiteBalance:
+                    type: string
+                colorSpace:
+                    type: string
+                iccProfile:
+                    type: string
+                    description: Human-readable description from an embedded ICC profile, when available.
+                bitsPerSample:
+                    type: integer
+                    format: int32
+                focalLength35mm:
                     type: number
                     format: double
         Reaction:

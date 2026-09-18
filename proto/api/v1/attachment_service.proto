@@ -73,8 +73,9 @@ message MotionMedia {
   bool has_embedded_video = 5;
 }
 
-// MediaMetadata contains normalized metadata explicitly supplied by a client.
-// The server validates and stores this data but does not extract it from the media file.
+// MediaMetadata contains normalized metadata from the original media or a client.
+// When Save media metadata is enabled, the server extracts supported photo fields
+// and uses client data only for fields it cannot read from the original file.
 message MediaMetadata {
   // Optional. Display-oriented width in pixels.
   optional int32 width = 1;
@@ -103,6 +104,15 @@ message PhotoMetadata {
   optional double exposure_time_seconds = 8;
   optional int32 iso = 9;
   optional double focal_length_mm = 10;
+  optional double exposure_bias_ev = 11;
+  string exposure_program = 12;
+  string metering_mode = 13;
+  string white_balance = 14;
+  string color_space = 15;
+  // Human-readable description from an embedded ICC profile, when available.
+  string icc_profile = 16;
+  optional int32 bits_per_sample = 17;
+  optional double focal_length_35mm = 18;
 }
 
 message MediaCaptureTime {
@@ -162,7 +172,7 @@ message Attachment {
   // Optional. Motion media metadata.
   MotionMedia motion_media = 9 [(google.api.field_behavior) = OPTIONAL];
 
-  // Optional. Immutable normalized media metadata explicitly supplied by the client at creation time.
+  // Optional. Immutable normalized media metadata captured at creation time.
   MediaMetadata media_metadata = 10 [
     (google.api.field_behavior) = OPTIONAL,
     (google.api.field_behavior) = IMMUTABLE

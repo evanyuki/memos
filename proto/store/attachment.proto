@@ -58,6 +58,15 @@ message PhotoMetadata {
   optional double exposure_time_seconds = 8;
   optional int32 iso = 9;
   optional double focal_length_mm = 10;
+  optional double exposure_bias_ev = 11;
+  string exposure_program = 12;
+  string metering_mode = 13;
+  string white_balance = 14;
+  string color_space = 15;
+  // Human-readable description from an embedded ICC profile, when available.
+  string icc_profile = 16;
+  optional int32 bits_per_sample = 17;
+  optional double focal_length_35mm = 18;
 }
 
 message MediaCaptureTime {

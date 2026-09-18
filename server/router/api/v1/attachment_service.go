@@ -8,6 +8,7 @@ import (
 	"mime"
 	"net/http"
 	"path/filepath"
+	"strings"
 	"time"
 
 	"github.com/pkg/errors"
@@ -17,6 +18,7 @@ import (
 
 	"github.com/usememos/memos/internal/filter"
 	v1pb "github.com/usememos/memos/proto/gen/api/v1"
+	storepb "github.com/usememos/memos/proto/gen/store"
 	"github.com/usememos/memos/store"
 )
 
@@ -156,9 +158,30 @@ func (s *APIV1Service) CreateAttachment(ctx context.Context, request *v1pb.Creat
 		}
 	}
 
-	// Strip EXIF metadata from images for privacy protection.
-	// This removes sensitive information like GPS location, device details, etc.
-	if shouldStripExif(create.Type) && !isAndroidMotionContainer(create.Payload.GetMotionMedia()) {
+	// Read the same preference for browser and API uploads. Opting in preserves
+	// original EXIF, ICC, HDR and motion bytes; extraction never re-encodes the file.
+	generalSetting, err := s.Store.GetUserSetting(ctx, &store.FindUserSetting{UserID: &user.ID, Key: storepb.UserSetting_GENERAL})
+	if err != nil {
+		return nil, status.Errorf(codes.Internal, "failed to get upload preferences: %v", err)
+	}
+	preserveOriginal := generalSetting.GetGeneral().GetSaveMediaMetadata()
+	if preserveOriginal && strings.HasPrefix(create.Type, "image/") {
+		release, err := s.acquireImageProcessingSlot(ctx)
+		if err != nil {
+			return nil, status.Errorf(codes.ResourceExhausted, "too many image processing requests")
+		}
+		metadata, extractErr := extractPhotoMetadata(ctx, create.Blob, create.Type, create.Payload.GetMediaMetadata())
+		release()
+		if metadata != nil {
+			create.Payload = ensureAttachmentPayload(create.Payload)
+			create.Payload.MediaMetadata = metadata
+		}
+		if extractErr != nil {
+			// Keep the original and any validated partial metadata when a camera's
+			// metadata is unsupported or malformed; failure must not destroy pixels.
+			slog.Warn("failed to extract some image metadata", "filename", create.Filename, "error", extractErr)
+		}
+	} else if shouldStripExif(create.Type) && !isAndroidMotionContainer(create.Payload.GetMotionMedia()) {
 		release, err := s.acquireImageProcessingSlot(ctx)
 		if err != nil {
 			return nil, status.Errorf(codes.ResourceExhausted, "too many image processing requests")

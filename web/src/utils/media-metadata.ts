@@ -19,6 +19,14 @@ export interface MediaMetadataDisplay {
   camera?: string;
   lens?: string;
   exposure?: string;
+  exposureBias?: string;
+  exposureProgram?: string;
+  meteringMode?: string;
+  focalLengthEquivalent?: string;
+  whiteBalance?: string;
+  colorSpace?: string;
+  iccProfile?: string;
+  bitDepth?: string;
   location?: MediaLocationDisplay;
   sourceExifOrientation?: number;
   hasSavedMetadata: boolean;
@@ -123,6 +131,14 @@ export const buildMediaMetadataDisplay = (attachments: Attachment[] | undefined,
     camera,
     lens: photo?.lensModel || undefined,
     exposure: exposure || undefined,
+    exposureBias: photo?.exposureBiasEv !== undefined ? `${formatNumber(photo.exposureBiasEv, locale)} EV` : undefined,
+    exposureProgram: photo?.exposureProgram || undefined,
+    meteringMode: photo?.meteringMode || undefined,
+    focalLengthEquivalent: photo?.focalLength35mm !== undefined ? `${formatNumber(photo.focalLength35mm, locale)} mm` : undefined,
+    whiteBalance: photo?.whiteBalance || undefined,
+    colorSpace: photo?.colorSpace || undefined,
+    iccProfile: photo?.iccProfile || undefined,
+    bitDepth: photo?.bitsPerSample !== undefined ? String(photo.bitsPerSample) : undefined,
     location,
     sourceExifOrientation: photo?.sourceExifOrientation,
     hasSavedMetadata: attachments.some((attachment) => attachment.mediaMetadata !== undefined),
