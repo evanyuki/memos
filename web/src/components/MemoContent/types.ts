@@ -1,5 +1,6 @@
 import type React from "react";
 import type { Attachment } from "@/types/proto/api/v1/attachment_service_pb";
+import type { PreviewMediaItem } from "@/utils/media-item";
 
 export interface MemoContentProps {
   content: string;
@@ -10,6 +11,8 @@ export interface MemoContentProps {
   /** The card renders collapsed (ClampedSection), so footnote links navigate instead of scrolling. */
   compact?: boolean;
   standalone?: boolean;
+  hideImages?: boolean;
+  onImagePreview?: (items: PreviewMediaItem[], index: number) => void;
   className?: string;
   contentClassName?: string;
   onClick?: (e: React.MouseEvent) => void;

@@ -1,4 +1,5 @@
 import { CLAMP_PREVIEW_HEIGHT_PX, CLAMP_TRIGGER_HEIGHT_PX } from "@/components/ClampedSection";
+import { COLLAGE_MAX_VISIBLE_CELLS } from "@/components/MemoMetadata/Attachment/visualGalleryLayout";
 import type { Attachment } from "@/types/proto/api/v1/attachment_service_pb";
 import type { Memo } from "@/types/proto/api/v1/memo_service_pb";
 import { MemoRelation_Type } from "@/types/proto/api/v1/memo_service_pb";
@@ -23,9 +24,8 @@ const CONTENT_MIN_CHARS_PER_LINE = 18;
 const MARKDOWN_IMAGE_HEIGHT = 220;
 const SINGLE_IMAGE_HEIGHT = 260;
 const SINGLE_VIDEO_ASPECT_RATIO = 9 / 16;
-const TWO_VISUAL_ITEMS_HEIGHT = 240;
-const MOSAIC_VISUAL_ITEMS_HEIGHT = 288;
-const SIX_VISUAL_ITEMS_HEIGHT = 320;
+const VISUAL_GALLERY_MAX_WIDTH = 576;
+const VISUAL_GALLERY_GAP = 8;
 const ATTACHMENT_SECTION_HEADER_HEIGHT = 36;
 const ATTACHMENT_SECTION_PADDING = 16;
 const ATTACHMENT_SECTION_GAP = 8;
@@ -65,9 +65,11 @@ const estimateVisualGalleryHeight = (visualAttachments: Attachment[], columnWidt
     const type = getAttachmentType(visualAttachments[0]!);
     return type === "video/*" ? Math.round(columnWidth * SINGLE_VIDEO_ASPECT_RATIO) : SINGLE_IMAGE_HEIGHT;
   }
-  if (count === 2) return TWO_VISUAL_ITEMS_HEIGHT;
-  if (count <= 4) return MOSAIC_VISUAL_ITEMS_HEIGHT;
-  return SIX_VISUAL_ITEMS_HEIGHT;
+  const columns = count === 2 || count === 4 ? 2 : 3;
+  const rows = Math.ceil(Math.min(count, COLLAGE_MAX_VISIBLE_CELLS) / columns);
+  const width = Math.max(1, Math.min(VISUAL_GALLERY_MAX_WIDTH, columnWidth - CONTENT_HORIZONTAL_PADDING - ATTACHMENT_SECTION_PADDING));
+  const cellSize = Math.max(1, (width - (columns - 1) * VISUAL_GALLERY_GAP) / columns);
+  return Math.round(cellSize * rows + (rows - 1) * VISUAL_GALLERY_GAP);
 };
 
 const estimateAttachmentSectionHeight = (attachments: Attachment[], columnWidth: number): number => {

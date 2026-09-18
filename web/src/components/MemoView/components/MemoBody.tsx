@@ -34,7 +34,7 @@ const BlurOverlay: React.FC<{ onClick?: () => void }> = ({ onClick }) => {
 const MemoBody: React.FC<MemoBodyProps> = ({ compact }) => {
   const { memo, parentPage, showBlurredContent, blurred, readonly, openEditor, openPreview, toggleBlurVisibility } = useMemoViewContext();
 
-  const { handleMemoContentClick, handleMemoContentDoubleClick } = useMemoHandlers({ readonly, openEditor, openPreview });
+  const { handleMemoContentDoubleClick } = useMemoHandlers({ readonly, openEditor });
 
   const referencedMemos = memo.relations.filter(isReferenceRelation);
   // Memoized so AttachmentListView's own useMemo chain keeps its cache across body renders.
@@ -58,7 +58,7 @@ const MemoBody: React.FC<MemoBodyProps> = ({ compact }) => {
             memoName={memo.name}
             content={memo.content}
             attachments={memo.attachments}
-            onClick={handleMemoContentClick}
+            onImagePreview={openPreview}
             onDoubleClick={handleMemoContentDoubleClick}
             compact={Boolean(compact)}
           />

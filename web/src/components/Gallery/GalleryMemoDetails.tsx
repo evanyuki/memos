@@ -9,7 +9,6 @@ import { Button } from "@/components/ui/button";
 import { useAuth } from "@/contexts/AuthContext";
 import { type GalleryPhoto, galleryKeys } from "@/hooks/useGalleryQueries";
 import { useUpdateMemo } from "@/hooks/useMemoQueries";
-import { withShareAttachmentLinks } from "@/hooks/useMemoShareQueries";
 import { Visibility } from "@/types/proto/api/v1/memo_service_pb";
 import { useTranslate } from "@/utils/i18n";
 import { isSuperUser } from "@/utils/user";
@@ -23,7 +22,6 @@ export default function GalleryMemoDetails({ photo, shareToken }: { photo: Galle
   const [visibilityTarget, setVisibilityTarget] = useState<Visibility>();
   const { memo } = photo;
   const canEdit = !shareToken && (currentUser?.name === memo.creator || isSuperUser(currentUser));
-  const attachments = shareToken ? withShareAttachmentLinks(memo.attachments, shareToken) : memo.attachments;
   const changeVisibility = async () => {
     if (visibilityTarget === undefined) return;
     try {
@@ -50,13 +48,7 @@ export default function GalleryMemoDetails({ photo, shareToken }: { photo: Galle
         </div>
       )}
       <MentionResolutionProvider contents={[memo.content]} userNames={[memo.creator]}>
-        <MemoContent
-          content={memo.content}
-          memoName={memo.name}
-          attachments={attachments}
-          contentClassName="text-sm leading-6"
-          standalone
-        />
+        <MemoContent content={memo.content} memoName={memo.name} contentClassName="text-sm leading-6" standalone hideImages />
       </MentionResolutionProvider>
       <Link
         to={shareToken ? `/memos/shares/${encodeURIComponent(shareToken)}` : `/${memo.name}`}

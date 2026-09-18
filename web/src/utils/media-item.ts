@@ -10,6 +10,7 @@ import {
   isAppleLivePhotoVideo,
   isMotionAttachment,
 } from "./attachment";
+import { extractAttachmentUIDFromName, parseManagedAttachmentImageURL } from "./managed-attachment";
 
 interface PreviewMediaItemBase {
   id: string;
@@ -48,6 +49,42 @@ export interface AttachmentVisualItem {
   attachments: Attachment[];
   previewItem: PreviewMediaItem;
   mimeType: string;
+}
+
+/** Resolve Markdown images before previewing so managed/share/S3 URLs retain their saved EXIF and motion pair. */
+export function resolveImageVisualItem(source: string, filename: string, attachments: Attachment[]): AttachmentVisualItem {
+  const uid = parseManagedAttachmentImageURL(source);
+  const absoluteSource = absoluteImageSource(source);
+  const attachment = attachments.find(
+    (candidate) =>
+      (uid && extractAttachmentUIDFromName(candidate.name) === uid) ||
+      absoluteImageSource(getAttachmentUrl(candidate)) === absoluteSource ||
+      absoluteImageSource(getAttachmentThumbnailUrl(candidate)) === absoluteSource,
+  );
+  if (attachment) {
+    const groupId = getAttachmentMotionGroupId(attachment);
+    const group = groupId ? attachments.filter((candidate) => getAttachmentMotionGroupId(candidate) === groupId) : [attachment];
+    return buildAttachmentVisualItems(group)[0];
+  }
+  return {
+    id: source,
+    kind: "image",
+    filename: filename || "Image",
+    posterUrl: source,
+    sourceUrl: source,
+    attachmentNames: [],
+    attachments: [],
+    previewItem: { id: source, kind: "image", sourceUrl: source, posterUrl: source, filename: filename || "Image" },
+    mimeType: "image/*",
+  };
+}
+
+function absoluteImageSource(source: string): string {
+  try {
+    return new URL(source, window.location.origin).href;
+  } catch {
+    return source;
+  }
 }
 
 export function buildAttachmentVisualItems(attachments: Attachment[]): AttachmentVisualItem[] {

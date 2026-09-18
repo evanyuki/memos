@@ -6,8 +6,10 @@ import { buildRehypePlugins, buildRemarkPlugins } from "@/components/MemoContent
 import { isMentionElement, isTagElement, isTaskListItemElement } from "@/types/markdown";
 import type { Attachment } from "@/types/proto/api/v1/attachment_service_pb";
 import { lazyWithReload } from "@/utils/lazy";
-import { resolveManagedAttachmentImageSource } from "@/utils/managed-attachment";
+import { type PreviewMediaItem, resolveImageVisualItem } from "@/utils/media-item";
 import { CodeBlock } from "./CodeBlock";
+import { rehypeMemoImages } from "./imageGallery";
+import MarkdownImageGallery from "./MarkdownImageGallery";
 import { MarkdownRenderContext, rootMarkdownRenderContext } from "./MarkdownRenderContext";
 import { Mention } from "./Mention";
 import { AnchorLink, Blockquote, Heading, HorizontalRule, Image, InlineCode, Link, List, ListItem, Paragraph } from "./markdown";
@@ -26,6 +28,8 @@ export interface MemoMarkdownRendererProps {
   /** Whether the memo is rendered as a collapsed feed card. */
   compact?: boolean;
   standalone?: boolean;
+  hideImages?: boolean;
+  onImagePreview?: (items: PreviewMediaItem[], index: number) => void;
 }
 
 type RemarkPlugins = NonNullable<ComponentProps<typeof ReactMarkdown>["remarkPlugins"]>;
@@ -65,10 +69,18 @@ export const MemoMarkdownRendererCore = ({
   memoName,
   compact,
   standalone,
+  hideImages,
+  onImagePreview,
   mathRemarkPlugins = [],
   mathRehypePlugins = [],
 }: MemoMarkdownRendererCoreProps) => {
   const markdownComponents: Components = {
+    div: ({ node, ...props }) =>
+      node?.properties["data-memo-image-gallery"] ? (
+        <MarkdownImageGallery node={node} attachments={attachments} onImagePreview={onImagePreview} />
+      ) : (
+        <div {...props} />
+      ),
     input: ({ node, ...inputProps }) => {
       if (node && isTaskListItemElement(node)) {
         if (standalone) return <input {...inputProps} disabled readOnly />;
@@ -145,7 +157,19 @@ export const MemoMarkdownRendererCore = ({
     },
     code: ({ children, ...props }) => <InlineCode {...props}>{children}</InlineCode>,
     iframe: TrustedIframe,
-    img: ({ src, ...props }) => <Image {...props} src={resolveManagedAttachmentImageSource(src, attachments)} />,
+    img: ({ src, node, ...props }) => {
+      if (!src) return null;
+      const item = resolveImageVisualItem(src, props.alt ?? "", attachments);
+      return (
+        <Image
+          {...props}
+          src={item.kind === "motion" ? item.posterUrl : item.sourceUrl}
+          onPreview={
+            onImagePreview && !node?.properties["data-memo-linked-image"] ? () => onImagePreview([item.previewItem], 0) : undefined
+          }
+        />
+      );
+    },
     pre: CodeBlock,
     table: ({ children, ...props }) => <Table {...props}>{children}</Table>,
     thead: ({ children, ...props }) => <TableHead {...props}>{children}</TableHead>,
@@ -159,7 +183,7 @@ export const MemoMarkdownRendererCore = ({
     <MarkdownRenderContext.Provider value={rootMarkdownRenderContext}>
       <ReactMarkdown
         remarkPlugins={buildRemarkPlugins(mathRemarkPlugins)}
-        rehypePlugins={buildRehypePlugins(mathRehypePlugins)}
+        rehypePlugins={[...buildRehypePlugins(mathRehypePlugins), [rehypeMemoImages, { hideImages }]]}
         components={markdownComponents}
       >
         {content}
@@ -194,5 +218,7 @@ export const MemoMarkdownRenderer = memo(
     previous.memoName === next.memoName &&
     previous.compact === next.compact &&
     previous.standalone === next.standalone &&
+    previous.hideImages === next.hideImages &&
+    previous.onImagePreview === next.onImagePreview &&
     haveEqualResolvedMentions(previous.resolvedMentionUsernames, next.resolvedMentionUsernames),
 );

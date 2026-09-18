@@ -41,6 +41,8 @@ const MemoContent = (props: MemoContentProps) => {
           memoName={props.memoName}
           compact={Boolean(props.compact)}
           standalone={props.standalone}
+          hideImages={props.hideImages}
+          onImagePreview={props.onImagePreview}
         />
       </div>
     </div>

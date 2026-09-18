@@ -60,6 +60,20 @@ describe("estimateMemoCardHeight", () => {
     expect(estimateMemoCardHeight(inline, { columnWidth: 320 })).toBeLessThan(estimateMemoCardHeight(external, { columnWidth: 320 }));
   });
 
+  it("estimates square grid rows at the available width and caps overflow at nine cells", () => {
+    const withImages = (count: number) =>
+      buildMemo({
+        attachments: Array.from({ length: count }, (_, index) =>
+          buildAttachment({ name: `attachments/image-${index}`, filename: `${index}.jpg`, type: "image/jpeg" }),
+        ),
+      });
+    const height = (count: number, columnWidth = 320) => estimateMemoCardHeight(withImages(count), { columnWidth });
+    expect(height(6)).toBeGreaterThan(height(3));
+    expect(height(9)).toBeGreaterThan(height(6));
+    expect(height(12)).toBe(height(9));
+    expect(height(3, 240)).toBeLessThan(height(3, 320));
+  });
+
   it("estimates the visible comment preview height and caps it at three comments", () => {
     const oneComment = buildMemo({ relations: [buildCommentRelation("memos/main", 1)] });
     const threeComments = buildMemo({

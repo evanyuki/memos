@@ -29,4 +29,20 @@ describe("gallery standalone memo description", () => {
     expect(container.querySelector("script")).toBeNull();
     expect(container.querySelector('a[href^="javascript:"]')).toBeNull();
   });
+
+  it("keeps the inspector description text without re-rendering the memo's images", () => {
+    const { container } = render(
+      <MemoContent
+        content={
+          '**Photo story**\n\n![one](/one.jpg)\n\n![two](/two.jpg)\n\nCaption ![three](/three.jpg)\n\n<img src="/four.jpg" alt="four">'
+        }
+        standalone
+        hideImages
+      />,
+    );
+    expect(screen.getByText("Photo story")).toBeInTheDocument();
+    expect(screen.getByText("Caption")).toBeInTheDocument();
+    expect(container.querySelectorAll("img")).toHaveLength(0);
+    expect(container.querySelector("[data-memo-image-gallery]")).toBeNull();
+  });
 });

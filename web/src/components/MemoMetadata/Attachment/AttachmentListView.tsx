@@ -75,10 +75,22 @@ const VisualTile = ({
   className,
   onPreview,
   overlayLabel,
+  label,
   children,
-}: PropsWithChildren<{ className?: string; onPreview?: () => void; overlayLabel?: string }>) => {
+}: PropsWithChildren<{ className?: string; onPreview?: () => void; overlayLabel?: string; label: string }>) => {
   return (
-    <div className={cn(VISUAL_TILE_BUTTON_CLASS, className)} onClick={onPreview}>
+    <div
+      className={cn(VISUAL_TILE_BUTTON_CLASS, onPreview && "cursor-zoom-in", className)}
+      role={onPreview ? "button" : undefined}
+      tabIndex={onPreview ? 0 : undefined}
+      aria-label={onPreview ? label : undefined}
+      onClick={onPreview}
+      onKeyDown={(event) => {
+        if (event.target !== event.currentTarget || !onPreview || (event.key !== "Enter" && event.key !== " ")) return;
+        event.preventDefault();
+        onPreview();
+      }}
+    >
       <div className={MEDIA_HOVER_SURFACE_CLASS}>
         {children}
         <div className={MEDIA_HOVER_GRADIENT_CLASS} aria-hidden />
@@ -113,7 +125,7 @@ const CollageVisualItem = ({
   const motionPreviewProps = item.kind === "motion" ? getMotionPreviewProps(item) : undefined;
 
   return (
-    <VisualTile className={cn("block h-full w-full", className)} onPreview={onPreview} overlayLabel={overlayLabel}>
+    <VisualTile className={cn("block w-full", className)} onPreview={onPreview} overlayLabel={overlayLabel} label={item.filename}>
       {item.kind === "video" ? (
         <>
           <VideoPoster sourceUrl={item.sourceUrl} posterUrl={item.posterUrl} alt={item.filename} className={COVER_MEDIA_CLASS} />
@@ -145,7 +157,7 @@ const SingleVisualItem = ({ item, onPreview }: { item: VisualItem; onPreview?: (
 
   if (item.kind === "image") {
     return (
-      <VisualTile className="inline-block max-w-full" onPreview={onPreview}>
+      <VisualTile className="inline-block max-w-full" onPreview={onPreview} label={item.filename}>
         <img src={item.posterUrl} alt={item.filename} className={NATURAL_MEDIA_CLASS} loading="lazy" decoding="async" />
       </VisualTile>
     );
@@ -153,7 +165,7 @@ const SingleVisualItem = ({ item, onPreview }: { item: VisualItem; onPreview?: (
 
   if (item.kind === "motion" && motionPreviewProps) {
     return (
-      <VisualTile className="inline-block max-w-full" onPreview={onPreview}>
+      <VisualTile className="inline-block max-w-full" onPreview={onPreview} label={item.filename}>
         <MotionPhotoPreview
           posterUrl={item.posterUrl}
           motionUrl={motionPreviewProps.motionUrl}
@@ -169,7 +181,7 @@ const SingleVisualItem = ({ item, onPreview }: { item: VisualItem; onPreview?: (
   }
 
   return (
-    <VisualTile className={cn("block", SINGLE_VIDEO_CARD_WIDTH_CLASS)} onPreview={onPreview}>
+    <VisualTile className={cn("block", SINGLE_VIDEO_CARD_WIDTH_CLASS)} onPreview={onPreview} label={item.filename}>
       <div className="relative aspect-video bg-black/5">
         <VideoPoster sourceUrl={item.sourceUrl} posterUrl={item.posterUrl} alt={item.filename} className={COVER_MEDIA_CLASS} />
         <div className="pointer-events-none absolute inset-0 bg-gradient-to-t from-black/35 via-black/5 to-transparent" />
@@ -181,7 +193,7 @@ const SingleVisualItem = ({ item, onPreview }: { item: VisualItem; onPreview?: (
   );
 };
 
-const VisualGallery = ({ items, onPreview }: { items: VisualItem[]; onPreview?: (itemId: string) => void }) => {
+export const VisualGallery = ({ items, onPreview }: { items: VisualItem[]; onPreview?: (itemId: string) => void }) => {
   const layout = resolveVisualGalleryLayout(items);
 
   if (!layout) {
@@ -191,7 +203,7 @@ const VisualGallery = ({ items, onPreview }: { items: VisualItem[]; onPreview?: 
   if (layout.mode === "single") {
     return (
       <div className="w-full">
-        <SingleVisualItem item={layout.item} onPreview={() => onPreview?.(layout.item.id)} />
+        <SingleVisualItem item={layout.item} onPreview={onPreview ? () => onPreview(layout.item.id) : undefined} />
       </div>
     );
   }
@@ -204,7 +216,7 @@ const VisualGallery = ({ items, onPreview }: { items: VisualItem[]; onPreview?: 
           item={item}
           className={className}
           overlayLabel={overlayLabel}
-          onPreview={() => onPreview?.(item.id)}
+          onPreview={onPreview ? () => onPreview(item.id) : undefined}
         />
       ))}
     </div>
@@ -265,7 +277,7 @@ const AttachmentListView = ({ attachments, onImagePreview }: AttachmentListViewP
     >
       {hasMedia && (
         <div className="flex flex-col gap-2">
-          {hasVisual && <VisualGallery items={visualItems} onPreview={handlePreview} />}
+          {hasVisual && <VisualGallery items={visualItems} onPreview={onImagePreview ? handlePreview : undefined} />}
           {hasAudio && <AudioList attachments={audio.filter(isAudioAttachment)} compact />}
         </div>
       )}
