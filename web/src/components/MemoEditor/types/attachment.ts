@@ -162,7 +162,12 @@ function toLocalMotionItems(localFiles: LocalFile[]): AttachmentItem[] {
     return files.map(fileToItem);
   });
 
-  return [...groupedItems, ...singles];
+  const items = [...groupedItems, ...singles];
+  const sourceOrder = new Map(localFiles.map((file, index) => [file.previewUrl, index]));
+  return items.sort((left, right) => {
+    const position = (item: AttachmentItem) => Math.min(...item.memberIds.map((id) => sourceOrder.get(id) ?? 0));
+    return position(left) - position(right);
+  });
 }
 
 export function toAttachmentItems(attachments: Attachment[], localFiles: LocalFile[] = []): AttachmentItem[] {

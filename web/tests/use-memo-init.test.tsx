@@ -42,11 +42,7 @@ describe("useMemoInit", () => {
       filename: "image.png",
       type: "image/png",
     });
-    cacheService.saveNow(
-      cacheService.key("users/steven", "restored-draft"),
-      "![image](/file/attachments/image-one)",
-      [attachment],
-    );
+    cacheService.saveNow(cacheService.key("users/steven", "restored-draft"), "![image](/file/attachments/image-one)", [attachment]);
 
     render(
       <EditorProvider>
@@ -55,7 +51,7 @@ describe("useMemoInit", () => {
     );
 
     await waitFor(() => {
-      expect(getEditorState().content).toBe("![image](/file/attachments/image-one)");
+      expect(getEditorState().content).toBe("");
       expect(getEditorState().metadata.attachments).toEqual([attachment]);
     });
   });

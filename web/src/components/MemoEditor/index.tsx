@@ -325,12 +325,7 @@ const MemoEditorImpl: React.FC<MemoEditorProps> = ({
 
         {/* Metadata and toolbar grouped together at bottom */}
         <div className="w-full flex flex-col gap-2">
-          <EditorMetadata
-            memoName={memoName}
-            uploadingLocalFileURLs={inlineImageUpload.uploadingLocalFileURLs}
-            onInsertAttachments={inlineImageUpload.insertRemoteImages}
-            onInsertLocalFiles={inlineImageUpload.insertLocalImages}
-          />
+          <EditorMetadata memoName={memoName} uploadingLocalFileURLs={inlineImageUpload.uploadingLocalFileURLs} />
           <EditorToolbar
             onSave={handleSave}
             onCancel={onCancel ? handleCancel : undefined}

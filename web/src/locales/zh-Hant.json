@@ -267,7 +267,7 @@
       "keep-as-attachments": "保留為附件",
       "link-memo": "連結備忘錄",
       "retry-image-upload": "重試",
-      "uploading-inline-image": "正在上傳到正文",
+      "uploading-inline-image": "正在上傳…",
       "uploading-images": "正在上傳圖片 {{completed}}/{{total}}",
       "upload-file": "上傳文件"
     },
@@ -316,6 +316,20 @@
       "trigger": "錄製音訊",
       "unsupported": "不支援錄音",
       "unsupported-description": "此瀏覽器無法錄製備忘錄編輯器中的音訊。"
+    },
+    "images": {
+      "title": "圖片",
+      "reorder-hint": "拖曳調整順序，也可使用箭頭按鈕。",
+      "move-earlier": "向前移動圖片",
+      "move-later": "向後移動圖片",
+      "drag": "拖曳調整 {{name}} 的順序",
+      "rename": "修改圖片名稱",
+      "name": "圖片名稱",
+      "invalid-name": "請輸入有效名稱，不要包含 / 或 \\。",
+      "rename-failed": "圖片重新命名失敗，請重試。",
+      "uploading": "正在上傳…",
+      "preview": "預覽 {{name}}",
+      "remove": "移除圖片"
     }
   },
   "inbox": {

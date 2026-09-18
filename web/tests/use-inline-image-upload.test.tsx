@@ -48,22 +48,22 @@ describe("useInlineImageUpload", () => {
     vi.restoreAllMocks();
   });
 
-  test("inserts multiple uploaded images once and in selection order", async () => {
+  test("adds visible attachments in selection order without inserting Markdown", async () => {
     const first = remoteImage("first", "first.png");
     const second = remoteImage("second", "second.png");
     vi.spyOn(uploadService, "uploadFile").mockResolvedValueOnce(first).mockResolvedValueOnce(second);
     const { controller } = makeController();
     const editorRef = { current: controller } as RefObject<EditorController>;
-    const { result } = renderHook(() => useInlineImageUpload(editorRef), { wrapper });
+    const { result } = renderHook(() => ({ upload: useInlineImageUpload(editorRef), editor: useEditorContext() }), { wrapper });
 
-    act(() => result.current.insertLocalImages([localImage("first.png"), localImage("second.png")], 7));
+    act(() => result.current.upload.insertLocalImages([localImage("first.png"), localImage("second.png")], 7));
 
-    await waitFor(() => expect(controller.resolveUploadAnchor).toHaveBeenCalledTimes(1));
+    await waitFor(() => expect(controller.cancelUploadAnchor).toHaveBeenCalledTimes(1));
     expect(controller.createUploadAnchor).toHaveBeenCalledWith(expect.any(Object), 7);
-    expect(controller.resolveUploadAnchor).toHaveBeenCalledWith(
-      expect.any(String),
-      "![first](/file/attachments/first)\n\n![second](/file/attachments/second)",
-    );
+    expect(controller.resolveUploadAnchor).not.toHaveBeenCalled();
+    expect(result.current.editor.getState().metadata.attachments).toEqual([first, second]);
+    expect(result.current.editor.getState().localFiles).toEqual([]);
+    expect(result.current.editor.getState().content).toBe("");
   });
 
   test("passes the ingested local file, with its media metadata, straight to uploads", async () => {
@@ -79,6 +79,49 @@ describe("useInlineImageUpload", () => {
     expect(upload).toHaveBeenCalledWith(localFile);
   });
 
+  test("preserves selection order when an earlier upload needs retrying", async () => {
+    const first = remoteImage("first", "first.png");
+    const second = remoteImage("second", "second.png");
+    vi.spyOn(uploadService, "uploadFile")
+      .mockRejectedValueOnce(new Error("offline"))
+      .mockResolvedValueOnce(second)
+      .mockResolvedValueOnce(first);
+    const { controller, descriptors } = makeController();
+    const editorRef = { current: controller } as RefObject<EditorController>;
+    const { result } = renderHook(() => ({ upload: useInlineImageUpload(editorRef), editor: useEditorContext() }), { wrapper });
+    act(() => result.current.upload.insertLocalImages([localImage("first.png"), localImage("second.png")]));
+    await waitFor(() => expect(descriptors.at(-1)?.status).toBe("failed"));
+    act(() => descriptors.at(-1)?.onRetry?.());
+    await waitFor(() => expect(result.current.editor.getState().metadata.attachments).toEqual([first, second]));
+    expect(controller.resolveUploadAnchor).not.toHaveBeenCalled();
+  });
+
+  test("serializes successive selections and exposes local thumbnails while uploading", async () => {
+    const first = remoteImage("first", "first.png");
+    const second = remoteImage("second", "second.png");
+    let resolveFirst!: (attachment: typeof first) => void;
+    const upload = vi
+      .spyOn(uploadService, "uploadFile")
+      .mockReturnValueOnce(
+        new Promise((resolve) => {
+          resolveFirst = resolve;
+        }),
+      )
+      .mockResolvedValueOnce(second);
+    const { controller } = makeController();
+    const editorRef = { current: controller } as RefObject<EditorController>;
+    const { result } = renderHook(() => ({ upload: useInlineImageUpload(editorRef), editor: useEditorContext() }), { wrapper });
+    act(() => {
+      result.current.upload.insertLocalImages([localImage("first.png")]);
+      result.current.upload.insertLocalImages([localImage("second.png")]);
+    });
+    expect(upload).toHaveBeenCalledTimes(1);
+    expect(result.current.editor.getState().localFiles.map((file) => file.file.name)).toEqual(["first.png", "second.png"]);
+    await act(async () => resolveFirst(first));
+    await waitFor(() => expect(result.current.editor.getState().metadata.attachments).toEqual([first, second]));
+    expect(result.current.editor.getState().localFiles).toEqual([]);
+  });
+
   test("retries only failed files and preserves their original placement", async () => {
     const first = remoteImage("first", "first.png");
     const second = remoteImage("second", "second.png");
@@ -89,22 +132,20 @@ describe("useInlineImageUpload", () => {
       .mockResolvedValueOnce(second);
     const { controller, descriptors } = makeController();
     const editorRef = { current: controller } as RefObject<EditorController>;
-    const { result } = renderHook(() => useInlineImageUpload(editorRef), { wrapper });
+    const { result } = renderHook(() => ({ upload: useInlineImageUpload(editorRef), editor: useEditorContext() }), { wrapper });
     const files = [localImage("first.png"), localImage("second.png")];
 
-    act(() => result.current.insertLocalImages(files));
+    act(() => result.current.upload.insertLocalImages(files));
     await waitFor(() => expect(descriptors.at(-1)?.status).toBe("failed"));
     expect(controller.resolveUploadAnchor).not.toHaveBeenCalled();
 
     act(() => descriptors.at(-1)?.onRetry?.());
-    await waitFor(() => expect(controller.resolveUploadAnchor).toHaveBeenCalledTimes(1));
+    await waitFor(() => expect(controller.cancelUploadAnchor).toHaveBeenCalledTimes(1));
 
     expect(upload).toHaveBeenCalledTimes(3);
     expect(upload.mock.calls.map(([file]) => file.file.name)).toEqual(["first.png", "second.png", "second.png"]);
-    expect(controller.resolveUploadAnchor).toHaveBeenCalledWith(
-      expect.any(String),
-      "![first](/file/attachments/first)\n\n![second](/file/attachments/second)",
-    );
+    expect(result.current.editor.getState().metadata.attachments).toEqual([first, second]);
+    expect(controller.resolveUploadAnchor).not.toHaveBeenCalled();
   });
 
   test("does not start local or remote insertion while a save is in progress", () => {

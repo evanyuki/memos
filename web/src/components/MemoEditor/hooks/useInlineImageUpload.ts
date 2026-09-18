@@ -5,7 +5,6 @@ import { v4 as uuidv4 } from "uuid";
 import type { Attachment } from "@/types/proto/api/v1/attachment_service_pb";
 import { isImage } from "@/utils/attachment";
 import { useTranslate } from "@/utils/i18n";
-import { buildManagedAttachmentMarkdown, canInlineAttachment } from "@/utils/managed-attachment";
 import { errorService, uploadService } from "../services";
 import { useEditorContext } from "../state";
 import type { LocalFile } from "../types/attachment";
@@ -21,6 +20,7 @@ interface UploadJob {
   entries: UploadEntry[];
   representativeIndexes: number[];
   active: boolean;
+  failed: boolean;
 }
 
 interface InlineLocalFileSplit {
@@ -74,6 +74,7 @@ const createJob = (localFiles: LocalFile[]): UploadJob | undefined => {
     entries: inline.map((localFile) => ({ localFile })),
     representativeIndexes,
     active: false,
+    failed: false,
   };
 };
 
@@ -83,6 +84,7 @@ export const useInlineImageUpload = (editorRef: RefObject<EditorController | nul
   const jobsRef = useRef(new Map<string, UploadJob>());
   const disposedRef = useRef(false);
   const [uploadingLocalFileURLs, setUploadingLocalFileURLs] = useState<ReadonlySet<string>>(new Set());
+  const runJobRef = useRef<(id: string) => Promise<void>>(async () => undefined);
 
   /** Publishes everything derived from the live job map; call after any mutation of it. */
   const syncJobState = useCallback(() => {
@@ -106,13 +108,13 @@ export const useInlineImageUpload = (editorRef: RefObject<EditorController | nul
     );
   }, [actions, dispatch, getState]);
 
-  const appendAttachment = useCallback(
-    (attachment: Attachment, localPreviewURL: string) => {
+  const appendAttachments = useCallback(
+    (entries: UploadEntry[]) => {
       const state = getState();
-      dispatch(actions.setMetadata({ attachments: uniqBy([...state.metadata.attachments, attachment], (item) => item.name) }));
-      if (state.localFiles.some((localFile) => localFile.previewUrl === localPreviewURL)) {
-        dispatch(actions.removeLocalFile(localPreviewURL));
-      }
+      const uploaded = entries.map((entry) => entry.attachment!);
+      const localURLs = new Set(entries.map((entry) => entry.localFile.previewUrl));
+      dispatch(actions.setMetadata({ attachments: uniqBy([...state.metadata.attachments, ...uploaded], (item) => item.name) }));
+      dispatch(actions.setLocalFiles(state.localFiles.filter((file) => !localURLs.has(file.previewUrl))));
     },
     [actions, dispatch, getState],
   );
@@ -121,6 +123,8 @@ export const useInlineImageUpload = (editorRef: RefObject<EditorController | nul
     (job: UploadJob) => {
       jobsRef.current.delete(job.id);
       syncJobState();
+      const next = Array.from(jobsRef.current.values()).find((candidate) => !candidate.active && !candidate.failed);
+      if (next) void runJobRef.current(next.id);
     },
     [syncJobState],
   );
@@ -135,7 +139,6 @@ export const useInlineImageUpload = (editorRef: RefObject<EditorController | nul
     [editorRef, finishJob],
   );
 
-  const runJobRef = useRef<(id: string) => Promise<void>>(async () => undefined);
   const retryJob = useCallback((id: string) => void runJobRef.current(id), []);
 
   const descriptorFor = useCallback(
@@ -164,7 +167,9 @@ export const useInlineImageUpload = (editorRef: RefObject<EditorController | nul
     async (id: string) => {
       const job = jobsRef.current.get(id);
       if (!job || job.active || disposedRef.current) return;
+      if (Array.from(jobsRef.current.values()).some((candidate) => candidate.active)) return;
       job.active = true;
+      job.failed = false;
       syncJobState();
       editorRef.current?.updateUploadAnchor(descriptorFor(job, "uploading"));
 
@@ -174,7 +179,11 @@ export const useInlineImageUpload = (editorRef: RefObject<EditorController | nul
         try {
           entry.attachment = await uploadService.uploadFile(entry.localFile);
           if (disposedRef.current) return;
-          appendAttachment(entry.attachment, entry.localFile.previewUrl);
+          const groupID = entry.localFile.motionMedia?.groupId;
+          const group = groupID ? job.entries.filter((candidate) => candidate.localFile.motionMedia?.groupId === groupID) : [entry];
+          // Keep the local Live Photo together until both its still and video
+          // are ready, so uploading never exposes a duplicate or broken card.
+          if (group.every((member) => member.attachment)) appendAttachments(group);
           editorRef.current?.updateUploadAnchor(descriptorFor(job, "uploading"));
         } catch (error) {
           lastError = error;
@@ -186,18 +195,25 @@ export const useInlineImageUpload = (editorRef: RefObject<EditorController | nul
       syncJobState();
 
       if (job.entries.some((entry) => !entry.attachment)) {
+        job.failed = true;
         editorRef.current?.updateUploadAnchor(descriptorFor(job, "failed"));
         toast.error(errorService.getErrorMessage(lastError) || t("editor.insert-menu.image-upload-failed"));
         return;
       }
 
-      const markdown = job.representativeIndexes
-        .map((index) => buildManagedAttachmentMarkdown(job.entries[index]!.attachment!))
-        .join("\n\n");
-      editorRef.current?.resolveUploadAnchor(job.id, markdown);
+      // A failed upload can finish after a later file; restore the selected
+      // order before exposing the completed batch for rearrangement.
+      const attachments = getState().metadata.attachments;
+      const uploaded = job.entries.map((entry) => entry.attachment!);
+      const names = new Set(uploaded.map((attachment) => attachment.name));
+      const firstIndex = attachments.findIndex((attachment) => names.has(attachment.name));
+      const remaining = attachments.filter((attachment) => !names.has(attachment.name));
+      remaining.splice(Math.max(0, firstIndex), 0, ...uploaded);
+      dispatch(actions.setMetadata({ attachments: remaining }));
+      editorRef.current?.cancelUploadAnchor(job.id);
       finishJob(job);
     },
-    [appendAttachment, descriptorFor, editorRef, finishJob, syncJobState, t],
+    [actions, dispatch, getState, appendAttachments, descriptorFor, editorRef, finishJob, syncJobState, t],
   );
   runJobRef.current = runJob;
 
@@ -207,21 +223,24 @@ export const useInlineImageUpload = (editorRef: RefObject<EditorController | nul
       const editor = editorRef.current;
       const job = createJob(localFiles);
       if (!editor || !job) return;
+      const knownURLs = new Set(getState().localFiles.map((file) => file.previewUrl));
+      for (const entry of job.entries) {
+        if (!knownURLs.has(entry.localFile.previewUrl)) dispatch(actions.addLocalFile(entry.localFile));
+      }
       jobsRef.current.set(job.id, job);
       syncJobState();
       editor.createUploadAnchor(descriptorFor(job, "uploading"), position);
       void runJob(job.id);
     },
-    [descriptorFor, editorRef, getState, runJob, syncJobState],
+    [actions, dispatch, descriptorFor, editorRef, getState, runJob, syncJobState],
   );
 
   const insertRemoteImages = useCallback(
     (attachments: Attachment[]) => {
       if (getState().ui.isLoading.saving) return;
-      const markdown = attachments.filter(canInlineAttachment).map(buildManagedAttachmentMarkdown).join("\n\n");
-      editorRef.current?.insertMarkdown(markdown);
+      dispatch(actions.setMetadata({ attachments: uniqBy([...getState().metadata.attachments, ...attachments], (item) => item.name) }));
     },
-    [editorRef, getState],
+    [actions, dispatch, getState],
   );
 
   useEffect(() => {

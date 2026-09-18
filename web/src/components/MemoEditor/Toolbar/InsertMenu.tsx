@@ -50,7 +50,9 @@ const InsertMenu = (props: InsertMenuProps) => {
 
   const { fileInputRef, selectingFlag, handleFileInputChange, handleUploadClick } = useFileUpload((newFiles: LocalFile[]) => {
     if (getState().ui.isLoading.saving) return;
-    newFiles.forEach((file) => dispatch(actions.addLocalFile(file)));
+    const images = newFiles.filter((file) => file.file.type.startsWith("image/") || file.motionMedia);
+    newFiles.filter((file) => !images.includes(file)).forEach((file) => dispatch(actions.addLocalFile(file)));
+    if (images.length > 0) props.onInsertImages(images.map((file) => file.file));
   });
 
   const linkMemo = useLinkMemo({

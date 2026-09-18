@@ -1,25 +1,17 @@
-import {
-  ChevronDownIcon,
-  ChevronUpIcon,
-  FileAudioIcon,
-  FileIcon,
-  ImagePlusIcon,
-  PaperclipIcon,
-  PauseIcon,
-  PlayIcon,
-  XIcon,
-} from "lucide-react";
+import { ChevronDownIcon, ChevronUpIcon, FileAudioIcon, FileIcon, PaperclipIcon, PauseIcon, PlayIcon, XIcon } from "lucide-react";
 import { type FC, type MouseEvent, useMemo, useRef, useState } from "react";
+import { ImageAttachmentCard } from "@/components/MemoEditor/components/ImageAttachmentCard";
 import type { AttachmentItem, LocalFile } from "@/components/MemoEditor/types/attachment";
 import { getAudioRecordingTimeLabel, toAttachmentItems } from "@/components/MemoEditor/types/attachment";
+import { moveAttachmentItem, renameLocalFile } from "@/components/MemoEditor/utils/imageAttachments";
 import MetadataSection from "@/components/MemoMetadata/MetadataSection";
 import PreviewImageDialog from "@/components/PreviewImageDialog";
 import { Button } from "@/components/ui/button";
+import { useUpdateAttachment } from "@/hooks/useAttachmentQueries";
 import { cn } from "@/lib/utils";
 import type { Attachment } from "@/types/proto/api/v1/attachment_service_pb";
 import { formatFileSize, getFileTypeLabel } from "@/utils/format";
 import { useTranslate } from "@/utils/i18n";
-import { canInlineAttachment, extractAttachmentUIDFromName } from "@/utils/managed-attachment";
 import type { PreviewMediaItem } from "@/utils/media-item";
 import { formatAudioTime, toggleAudioPlayback } from "./attachmentHelpers";
 
@@ -32,42 +24,24 @@ interface AttachmentListEditorProps {
   onAttachmentsChange?: (attachments: Attachment[]) => void;
   onLocalFilesChange?: (localFiles: LocalFile[]) => void;
   onRemoveLocalFile?: (previewUrl: string) => void;
-  inlineAttachmentUIDs?: ReadonlySet<string>;
-  onInsertAttachments?: (attachments: Attachment[]) => void;
-  onInsertLocalFiles?: (localFiles: LocalFile[]) => void;
   placementActionsDisabled?: boolean;
   uploadingLocalFileURLs?: ReadonlySet<string>;
+  onRenamePendingChange?: (pending: boolean) => void;
 }
 
 const AttachmentItemActions: FC<{
-  placementAction?: { label: string; onClick: () => void; disabled?: boolean };
   onRemove?: () => void;
   onMoveUp?: () => void;
   onMoveDown?: () => void;
   canMoveUp?: boolean;
   canMoveDown?: boolean;
-}> = ({ placementAction, onRemove, onMoveUp, onMoveDown, canMoveUp = true, canMoveDown = true }) => {
+}> = ({ onRemove, onMoveUp, onMoveDown, canMoveUp = true, canMoveDown = true }) => {
   const stopPropagation = (event: MouseEvent) => {
     event.stopPropagation();
   };
 
   return (
     <div className="shrink-0 flex items-center gap-0.5">
-      {placementAction && (
-        <Button
-          variant="ghost"
-          size="sm"
-          onClick={(event) => {
-            stopPropagation(event);
-            placementAction.onClick();
-          }}
-          className="h-6 gap-1 px-1.5 text-[10px] text-muted-foreground"
-          disabled={placementAction.disabled}
-        >
-          <ImagePlusIcon className="size-3" />
-          {placementAction.label}
-        </Button>
-      )}
       {onMoveUp && (
         <Button
           variant="ghost"
@@ -127,8 +101,7 @@ const AttachmentItemCard: FC<{
   canMoveUp?: boolean;
   canMoveDown?: boolean;
   isUploadingInline?: boolean;
-  placementAction?: { label: string; onClick: () => void; disabled?: boolean };
-}> = ({ item, onPreview, onRemove, onMoveUp, onMoveDown, canMoveUp = true, canMoveDown = true, isUploadingInline, placementAction }) => {
+}> = ({ item, onPreview, onRemove, onMoveUp, onMoveDown, canMoveUp = true, canMoveDown = true, isUploadingInline }) => {
   const t = useTranslate();
   const { category, filename, thumbnailUrl, mimeType, size, sourceUrl, isVoiceNote, audioMeta } = item;
   const audioRef = useRef<HTMLAudioElement>(null);
@@ -237,7 +210,6 @@ const AttachmentItemCard: FC<{
         </div>
 
         <AttachmentItemActions
-          placementAction={placementAction}
           onRemove={onRemove}
           onMoveUp={onMoveUp}
           onMoveDown={onMoveDown}
@@ -255,28 +227,20 @@ const AttachmentListEditor: FC<AttachmentListEditorProps> = ({
   onAttachmentsChange,
   onLocalFilesChange,
   onRemoveLocalFile,
-  inlineAttachmentUIDs = new Set(),
-  onInsertAttachments,
-  onInsertLocalFiles,
   placementActionsDisabled = false,
   uploadingLocalFileURLs = new Set(),
+  onRenamePendingChange,
 }) => {
   const t = useTranslate();
+  const { mutateAsync: updateAttachment } = useUpdateAttachment();
+  const [draggedID, setDraggedID] = useState<string>();
+  const [dropTargetID, setDropTargetID] = useState<string>();
+  const touchTargetRef = useRef<string | undefined>(undefined);
   const [previewState, setPreviewState] = useState<{ open: boolean; initialIndex: number }>({ open: false, initialIndex: 0 });
   const attachmentsByName = useMemo(() => new Map(attachments.map((attachment) => [attachment.name, attachment])), [attachments]);
-  const allItems = toAttachmentItems(attachments, localFiles);
-  const isInlineItem = (item: AttachmentItem) =>
-    !item.isLocal &&
-    collectMembers(attachmentsByName, item.memberIds).some((attachment) => {
-      const uid = extractAttachmentUIDFromName(attachment.name);
-      return uid ? inlineAttachmentUIDs.has(uid) : false;
-    });
-  // A managed image already has its placement represented in Markdown. Keep
-  // the attachment bound to the memo, but do not repeat its logical media group
-  // in the attachment section. Removing the Markdown reference makes it
-  // visible here again on the next render.
-  const items = allItems.filter((item) => !isInlineItem(item));
-  const allAttachmentItems = allItems.filter((item) => !item.isLocal);
+  const items = toAttachmentItems(attachments, localFiles);
+  const imageItems = items.filter((item) => item.category === "image" || item.category === "motion");
+  const fileItems = items.filter((item) => item.category !== "image" && item.category !== "motion");
   const attachmentItems = items.filter((item) => !item.isLocal);
   const localItems = items.filter((item) => item.isLocal);
   const previewItems = useMemo<PreviewMediaItem[]>(
@@ -340,9 +304,7 @@ const AttachmentListEditor: FC<AttachmentListEditorProps> = ({
     const reorderedItems = [...attachmentItems];
     [reorderedItems[itemIndex], reorderedItems[targetIndex]] = [reorderedItems[targetIndex], reorderedItems[itemIndex]];
 
-    let visibleIndex = 0;
-    const mergedItems = allAttachmentItems.map((item) => (isInlineItem(item) ? item : reorderedItems[visibleIndex++]!));
-    onAttachmentsChange(mergedItems.flatMap((item) => collectMembers(attachmentsByName, item.memberIds)));
+    onAttachmentsChange(reorderedItems.flatMap((item) => collectMembers(attachmentsByName, item.memberIds)));
   };
 
   const handleMoveLocalFiles = (itemId: string, direction: -1 | 1) => {
@@ -384,50 +346,147 @@ const AttachmentListEditor: FC<AttachmentListEditorProps> = ({
     setPreviewState({ open: true, initialIndex: previewIndex });
   };
 
+  const resetDrag = () => {
+    setDraggedID(undefined);
+    setDropTargetID(undefined);
+    touchTargetRef.current = undefined;
+  };
+  const moveImage = (sourceID: string, targetID: string) => {
+    const source = items.find((item) => item.id === sourceID);
+    const target = items.find((item) => item.id === targetID);
+    if (!source || !target || source.isLocal !== target.isLocal || placementActionsDisabled) return;
+    if (source.isLocal) {
+      onLocalFilesChange?.(
+        moveAttachmentItem(localItems, sourceID, targetID).flatMap((item) => collectMembers(localFilesByPreviewUrl, item.memberIds)),
+      );
+    } else {
+      onAttachmentsChange?.(
+        moveAttachmentItem(attachmentItems, sourceID, targetID).flatMap((item) => collectMembers(attachmentsByName, item.memberIds)),
+      );
+    }
+  };
+  const renameImage = async (item: AttachmentItem, filename: string) => {
+    if (item.isLocal) {
+      const still = item.memberIds.find((id) => localFilesByPreviewUrl.get(id)?.file.type.startsWith("image/"));
+      onLocalFilesChange?.(localFiles.map((file) => (file.previewUrl === still ? renameLocalFile(file, filename) : file)));
+    } else {
+      const still = collectMembers(attachmentsByName, item.memberIds).find((attachment) => attachment.type.startsWith("image/"));
+      if (!still) return;
+      onRenamePendingChange?.(true);
+      try {
+        const updated = await updateAttachment({ name: still.name, filename });
+        onAttachmentsChange?.(attachments.map((attachment) => (attachment.name === updated.name ? updated : attachment)));
+      } finally {
+        onRenamePendingChange?.(false);
+      }
+    }
+  };
+
   if (items.length === 0) {
     return null;
   }
 
   return (
     <>
-      <MetadataSection icon={PaperclipIcon} title="Attachments" count={items.length} contentClassName="flex flex-col gap-1 p-1 sm:p-1.5">
-        {items.map((item) => {
-          const itemList = item.isLocal ? localItems : attachmentItems;
-          const itemIndex = itemList.findIndex((entry) => entry.id === item.id);
-          const itemAttachments = collectMembers(attachmentsByName, item.memberIds);
-          const itemLocalFiles = collectMembers(localFilesByPreviewUrl, item.memberIds);
-          const isUploadingInline = item.isLocal && item.memberIds.some((memberID) => uploadingLocalFileURLs.has(memberID));
-          const canInsert =
-            (item.category === "image" || item.category === "motion") && (item.isLocal || itemAttachments.some(canInlineAttachment));
-          const placementAction = canInsert
-            ? {
-                label: t("editor.insert-menu.insert-image"),
-                onClick: () =>
-                  item.isLocal ? onInsertLocalFiles?.(itemLocalFiles) : onInsertAttachments?.(itemAttachments.filter(canInlineAttachment)),
-                disabled: placementActionsDisabled,
-              }
-            : undefined;
+      {imageItems.length > 0 && (
+        <section aria-label={t("editor.images.title")} className="space-y-2">
+          <div className="grid grid-cols-2 gap-2 sm:grid-cols-3">
+            {imageItems.map((item, index) => {
+              const siblings = imageItems.filter((candidate) => candidate.isLocal === item.isLocal);
+              const siblingIndex = siblings.findIndex((candidate) => candidate.id === item.id);
+              const uploading = item.isLocal && item.memberIds.some((id) => uploadingLocalFileURLs.has(id));
+              return (
+                <ImageAttachmentCard
+                  key={item.id}
+                  item={item}
+                  index={index}
+                  uploading={uploading}
+                  disabled={placementActionsDisabled || uploading}
+                  dragging={draggedID === item.id}
+                  dropTarget={dropTargetID === item.id && draggedID !== item.id}
+                  canMoveEarlier={siblingIndex > 0}
+                  canMoveLater={siblingIndex < siblings.length - 1}
+                  onPreview={() => handlePreviewItem(item)}
+                  onRemove={() => handleRemoveItem(item)}
+                  onRename={(filename) => renameImage(item, filename)}
+                  onMove={(direction) => {
+                    const target = siblings[siblingIndex + direction];
+                    if (target) moveImage(item.id, target.id);
+                  }}
+                  onDragStart={(event) => {
+                    event.dataTransfer.setData("text/plain", item.id);
+                    event.dataTransfer.effectAllowed = "move";
+                    setDraggedID(item.id);
+                  }}
+                  onDragOver={(event) => {
+                    if (!draggedID || placementActionsDisabled) return;
+                    event.preventDefault();
+                    event.dataTransfer.dropEffect = "move";
+                    setDropTargetID(item.id);
+                  }}
+                  onDrop={(event) => {
+                    event.preventDefault();
+                    if (draggedID) moveImage(draggedID, item.id);
+                    resetDrag();
+                  }}
+                  onDragEnd={resetDrag}
+                  onPointerDown={(event) => {
+                    if (event.pointerType !== "touch") return;
+                    event.currentTarget.setPointerCapture(event.pointerId);
+                    setDraggedID(item.id);
+                  }}
+                  onPointerMove={(event) => {
+                    if (event.pointerType !== "touch" || !draggedID) return;
+                    const targetID = document.elementFromPoint(event.clientX, event.clientY)?.closest<HTMLElement>("[data-image-id]")
+                      ?.dataset.imageId;
+                    touchTargetRef.current = targetID;
+                    setDropTargetID(targetID);
+                  }}
+                  onPointerUp={(event) => {
+                    if (event.pointerType !== "touch") return;
+                    if (touchTargetRef.current) moveImage(item.id, touchTargetRef.current);
+                    resetDrag();
+                  }}
+                  onPointerCancel={resetDrag}
+                />
+              );
+            })}
+          </div>
+          {imageItems.length > 1 && <p className="text-xs text-muted-foreground">{t("editor.images.reorder-hint")}</p>}
+        </section>
+      )}
+      {fileItems.length > 0 && (
+        <MetadataSection
+          icon={PaperclipIcon}
+          title={t("common.attachments")}
+          count={fileItems.length}
+          contentClassName="flex flex-col gap-1 p-1 sm:p-1.5"
+        >
+          {fileItems.map((item) => {
+            const itemList = item.isLocal ? localItems : attachmentItems;
+            const itemIndex = itemList.findIndex((entry) => entry.id === item.id);
+            const isUploadingInline = item.isLocal && item.memberIds.some((memberID) => uploadingLocalFileURLs.has(memberID));
 
-          return (
-            <AttachmentItemCard
-              key={item.id}
-              item={item}
-              isUploadingInline={isUploadingInline}
-              placementAction={placementAction}
-              onPreview={
-                item.category === "image" || item.category === "video" || item.category === "motion"
-                  ? () => handlePreviewItem(item)
-                  : undefined
-              }
-              onRemove={isUploadingInline ? undefined : () => handleRemoveItem(item)}
-              onMoveUp={item.isLocal ? () => handleMoveLocalFiles(item.id, -1) : () => handleMoveAttachments(item.id, -1)}
-              onMoveDown={item.isLocal ? () => handleMoveLocalFiles(item.id, 1) : () => handleMoveAttachments(item.id, 1)}
-              canMoveUp={itemIndex > 0}
-              canMoveDown={itemIndex >= 0 && itemIndex < itemList.length - 1}
-            />
-          );
-        })}
-      </MetadataSection>
+            return (
+              <AttachmentItemCard
+                key={item.id}
+                item={item}
+                isUploadingInline={isUploadingInline}
+                onPreview={
+                  item.category === "image" || item.category === "video" || item.category === "motion"
+                    ? () => handlePreviewItem(item)
+                    : undefined
+                }
+                onRemove={isUploadingInline ? undefined : () => handleRemoveItem(item)}
+                onMoveUp={item.isLocal ? () => handleMoveLocalFiles(item.id, -1) : () => handleMoveAttachments(item.id, -1)}
+                onMoveDown={item.isLocal ? () => handleMoveLocalFiles(item.id, 1) : () => handleMoveAttachments(item.id, 1)}
+                canMoveUp={itemIndex > 0}
+                canMoveDown={itemIndex >= 0 && itemIndex < itemList.length - 1}
+              />
+            );
+          })}
+        </MetadataSection>
+      )}
 
       <PreviewImageDialog
         open={previewState.open}

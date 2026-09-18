@@ -3,6 +3,7 @@ import type { Memo, Visibility } from "@/types/proto/api/v1/memo_service_pb";
 import { cacheService, memoService } from "../services";
 import { useEditorContext } from "../state";
 import type { EditorController } from "../types/editorController";
+import { normalizeImageAttachments } from "../utils/imageAttachments";
 
 interface UseMemoInitOptions {
   editorRef: React.RefObject<EditorController | null>;
@@ -37,7 +38,8 @@ export const useMemoInit = ({
       cacheService.clear(key);
       dispatch(actions.initMemo(initialState));
     } else {
-      const cachedDraft = cacheService.loadDraft(key);
+      const draft = cacheService.loadDraft(key);
+      const cachedDraft = normalizeImageAttachments(draft.content, draft.attachments);
       if (cachedDraft.content) {
         dispatch(actions.setContent(cachedDraft.content));
       }

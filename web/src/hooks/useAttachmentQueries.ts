@@ -1,12 +1,15 @@
 import { create } from "@bufbuild/protobuf";
+import { FieldMaskSchema } from "@bufbuild/protobuf/wkt";
 import { useInfiniteQuery, useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { attachmentServiceClient } from "@/connect";
 import {
   type Attachment,
+  AttachmentSchema,
   BatchDeleteAttachmentsRequestSchema,
   type ListAttachmentsRequest,
   ListAttachmentsRequestSchema,
 } from "@/types/proto/api/v1/attachment_service_pb";
+import { memoKeys } from "./useMemoQueries";
 
 // Query keys factory
 export const attachmentKeys = {
@@ -60,6 +63,22 @@ export function useCreateAttachment() {
     onSuccess: () => {
       // Invalidate attachments list
       queryClient.invalidateQueries({ queryKey: attachmentKeys.lists() });
+    },
+  });
+}
+
+export function useUpdateAttachment() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: ({ name, filename }: { name: string; filename: string }) =>
+      attachmentServiceClient.updateAttachment({
+        attachment: create(AttachmentSchema, { name, filename }),
+        updateMask: create(FieldMaskSchema, { paths: ["filename"] }),
+      }),
+    onSuccess: (attachment) => {
+      queryClient.setQueryData(attachmentKeys.detail(attachment.name), attachment);
+      void queryClient.invalidateQueries({ queryKey: attachmentKeys.lists() });
+      void queryClient.invalidateQueries({ queryKey: memoKeys.all });
     },
   });
 }

@@ -7,6 +7,7 @@ import { AttachmentSchema } from "@/types/proto/api/v1/attachment_service_pb";
 import type { Memo } from "@/types/proto/api/v1/memo_service_pb";
 import { MemoSchema } from "@/types/proto/api/v1/memo_service_pb";
 import type { EditorState } from "../state";
+import { normalizeImageAttachments } from "../utils/imageAttachments";
 import { uploadService } from "./uploadService";
 
 /**
@@ -128,11 +129,12 @@ export const memoService = {
    * UI state (mode, loading flags, …) is owned by the reducer, not by memos.
    */
   fromMemo(memo: Memo): Pick<EditorState, "content" | "metadata" | "timestamps"> {
+    const normalized = normalizeImageAttachments(memo.content, memo.attachments);
     return {
-      content: memo.content,
+      content: normalized.content,
       metadata: {
         visibility: memo.visibility,
-        attachments: memo.attachments,
+        attachments: normalized.attachments,
         relations: memo.relations,
         location: memo.location,
       },

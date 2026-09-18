@@ -1,7 +1,5 @@
-import type { Attachment } from "@/types/proto/api/v1/attachment_service_pb";
 import type { Location, Memo, Visibility } from "@/types/proto/api/v1/memo_service_pb";
 import type { AudioRecorderStatus } from "../hooks/useAudioRecorder";
-import type { LocalFile } from "./attachment";
 
 export interface MemoEditorProps {
   className?: string;
@@ -48,8 +46,6 @@ export interface EditorToolbarProps {
 export interface EditorMetadataProps {
   memoName?: string;
   uploadingLocalFileURLs: ReadonlySet<string>;
-  onInsertAttachments: (attachments: Attachment[]) => void;
-  onInsertLocalFiles: (localFiles: LocalFile[]) => void;
 }
 
 export interface AudioRecorderPanelProps {

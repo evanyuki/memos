@@ -209,7 +209,7 @@
       "keep-as-attachments": "保留为附件",
       "link-memo": "链接备忘录",
       "retry-image-upload": "重试",
-      "uploading-inline-image": "正在上传到正文",
+      "uploading-inline-image": "正在上传…",
       "uploading-images": "正在上传图片 {{completed}}/{{total}}",
       "upload-file": "上传文件"
     },
@@ -245,7 +245,21 @@
       "unsupported-description": "此浏览器无法录制备忘录编辑器中的音频。"
     },
     "unsupported-syntax-raw-mode": "此备忘包含富文本编辑器无法安全编辑的语法，已切换到原始 Markdown 模式。",
-    "wysiwyg-editor": "所见即所得编辑器"
+    "wysiwyg-editor": "所见即所得编辑器",
+    "images": {
+      "title": "图片",
+      "reorder-hint": "拖拽调整顺序，也可使用箭头按钮。",
+      "move-earlier": "向前移动图片",
+      "move-later": "向后移动图片",
+      "drag": "拖拽调整 {{name}} 的顺序",
+      "rename": "修改图片名称",
+      "name": "图片名称",
+      "invalid-name": "请输入有效名称，不要包含 / 或 \\。",
+      "rename-failed": "图片重命名失败，请重试。",
+      "uploading": "正在上传…",
+      "preview": "预览 {{name}}",
+      "remove": "移除图片"
+    }
   },
   "inbox": {
     "failed-to-load": "加载失败",
