@@ -64,11 +64,13 @@ func NewServer(ctx context.Context, profile *profile.Profile, store *store.Store
 	})
 
 	// Serve frontend static files.
-	frontend.NewFrontendService(profile, store).Serve(ctx, echoServer)
+	frontendService := frontend.NewFrontendService(profile, store)
+	frontendService.Serve(ctx, echoServer)
 
 	rootGroup := echoServer.Group("")
 
 	apiV1Service := apiv1.NewAPIV1Service(s.Secret, profile, store)
+	frontendService.RegisterGalleryRoutes(echoServer, apiV1Service)
 	s.sseHub = apiV1Service.SSEHub
 
 	// Register HTTP file server routes BEFORE gRPC-Gateway to ensure proper range request handling for Safari.

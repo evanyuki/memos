@@ -6,6 +6,7 @@ import (
 	"encoding/xml"
 	"io/fs"
 	"net/http"
+	"net/url"
 	"path"
 	"strings"
 
@@ -14,6 +15,7 @@ import (
 	"github.com/pkg/errors"
 
 	"github.com/usememos/memos/internal/profile"
+	storepb "github.com/usememos/memos/proto/gen/store"
 	"github.com/usememos/memos/store"
 )
 
@@ -80,6 +82,11 @@ func spaFallbackMiddleware(frontendFS fs.FS) echo.MiddlewareFunc {
 }
 
 func shouldSkipFrontendStatic(requestPath string) bool {
+	// Gallery handlers render their own SSR HTML and genuine 401/403/404 errors.
+	// Never rewrite a denied or missing photo into the generic SPA shell.
+	if hasPathPrefix(requestPath, "/gallery") {
+		return true
+	}
 	if requestPath == "/robots.txt" || requestPath == "/sitemap.xml" || strings.HasSuffix(requestPath, "/rss.xml") {
 		return true
 	}
@@ -146,19 +153,37 @@ func (s *FrontendService) getSitemapXML(c *echo.Context) error {
 		return err
 	}
 
+	normal := store.Normal
 	memos, err := s.Store.ListMemos(c.Request().Context(), &store.FindMemo{
-		VisibilityList: []store.Visibility{store.Public},
+		VisibilityList:  []store.Visibility{store.Public},
+		RowStatus:       &normal,
+		ExcludeComments: true,
 	})
 	if err != nil {
 		return errors.Wrap(err, "failed to list public memos for sitemap")
 	}
 
 	urls := make([]sitemapURL, 0, len(memos))
+	urls = append(urls, sitemapURL{Loc: instanceURL + "/gallery"})
+	memoIDs := make([]int32, 0, len(memos))
 	for _, memo := range memos {
+		memoIDs = append(memoIDs, memo.ID)
 		urls = append(urls, sitemapURL{
 			Loc: instanceURL + "/memos/" + memo.UID,
 		})
 	}
+	if len(memoIDs) > 0 {
+		attachments, err := s.Store.ListAttachments(c.Request().Context(), &store.FindAttachment{MemoIDList: memoIDs})
+		if err != nil {
+			return errors.Wrap(err, "failed to list public photos for sitemap")
+		}
+		for _, attachment := range attachments {
+			if strings.HasPrefix(attachment.Type, "image/") && attachment.StorageType != storepb.AttachmentStorageType_EXTERNAL {
+				urls = append(urls, sitemapURL{Loc: instanceURL + "/gallery/photos/" + url.PathEscape(attachment.UID)})
+			}
+		}
+	}
+	c.Response().Header().Set(echo.HeaderCacheControl, "no-store")
 
 	return c.XML(http.StatusOK, sitemapURLSet{
 		XMLNS: sitemapXMLNamespace,

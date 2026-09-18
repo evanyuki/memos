@@ -74,6 +74,7 @@ func TestFrontendService_CacheHeaderRules(t *testing.T) {
 func TestFrontendService_StaticCacheHeaders(t *testing.T) {
 	ctx := context.Background()
 	testStore := teststore.NewTestingStore(ctx, t)
+	t.Cleanup(func() { _ = testStore.Close() })
 
 	e := echo.New()
 	NewFrontendService(&profile.Profile{}, testStore).Serve(ctx, e)
@@ -125,6 +126,7 @@ func TestFrontendService_StaticCacheHeaders(t *testing.T) {
 func TestFrontendService_MissingAssetDoesNotFallbackToIndex(t *testing.T) {
 	ctx := context.Background()
 	testStore := teststore.NewTestingStore(ctx, t)
+	t.Cleanup(func() { _ = testStore.Close() })
 
 	e := echo.New()
 	NewFrontendService(&profile.Profile{}, testStore).Serve(ctx, e)
@@ -139,6 +141,7 @@ func TestFrontendService_MissingAssetDoesNotFallbackToIndex(t *testing.T) {
 func TestFrontendService_SkipsDynamicRoutes(t *testing.T) {
 	ctx := context.Background()
 	testStore := teststore.NewTestingStore(ctx, t)
+	t.Cleanup(func() { _ = testStore.Close() })
 
 	e := echo.New()
 	NewFrontendService(&profile.Profile{}, testStore).Serve(ctx, e)
@@ -157,6 +160,7 @@ func TestFrontendService_SkipsDynamicRoutes(t *testing.T) {
 func TestFrontendService_RobotsTXT(t *testing.T) {
 	ctx := context.Background()
 	testStore := teststore.NewTestingStore(ctx, t)
+	t.Cleanup(func() { _ = testStore.Close() })
 	profile := &profile.Profile{
 		InstanceURL: "https://demo.usememos.com/",
 	}
@@ -176,6 +180,7 @@ func TestFrontendService_RobotsTXT(t *testing.T) {
 func TestFrontendService_SitemapXML(t *testing.T) {
 	ctx := context.Background()
 	testStore := teststore.NewTestingStore(ctx, t)
+	t.Cleanup(func() { _ = testStore.Close() })
 	profile := &profile.Profile{
 		InstanceURL: "https://demo.usememos.com",
 	}
@@ -219,6 +224,7 @@ func TestFrontendService_SitemapXML(t *testing.T) {
 func TestFrontendService_SitemapRoutesRequireInstanceURL(t *testing.T) {
 	ctx := context.Background()
 	testStore := teststore.NewTestingStore(ctx, t)
+	t.Cleanup(func() { _ = testStore.Close() })
 
 	e := echo.New()
 	NewFrontendService(&profile.Profile{}, testStore).Serve(ctx, e)
