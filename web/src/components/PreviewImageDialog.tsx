@@ -136,11 +136,7 @@ function PreviewImageDialog({ open, onOpenChange, imgUrls = [], items, initialIn
           <div className="flex items-start justify-between gap-3">
             <div className="min-w-0 text-white">
               <div className="truncate text-sm font-medium">{currentItem.filename || "Attachment"}</div>
-              {hasMultiple && (
-                <div className="mt-1 text-xs text-white/70">
-                  {safeIndex + 1} / {itemCount}
-                </div>
-              )}
+              {hasMultiple && <div className="mt-1 text-xs text-white/70">{`${safeIndex + 1} / ${itemCount}`}</div>}
             </div>
 
             <div className="flex shrink-0 items-center gap-1.5">
@@ -246,7 +242,7 @@ function PreviewImageDialog({ open, onOpenChange, imgUrls = [], items, initialIn
                     <ChevronLeft className="h-4 w-4" />
                   </ZoomButton>
                   <div className="min-w-9 px-1 text-center text-xs font-medium tabular-nums text-white/75">
-                    {safeIndex + 1}/{itemCount}
+                    {`${safeIndex + 1}/${itemCount}`}
                   </div>
                   <ZoomButton label="Next item" onClick={handleNext} disabled={!canGoNext}>
                     <ChevronRight className="h-4 w-4" />

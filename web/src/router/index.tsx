@@ -18,6 +18,8 @@ const About = lazyWithReload(() => import("@/pages/About"));
 const Archived = lazyWithReload(() => import("@/pages/Archived"));
 const AuthCallback = lazyWithReload(() => import("@/pages/AuthCallback"));
 const Explore = lazyWithReload(() => import("@/pages/Explore"));
+const Gallery = lazyWithReload(() => import("@/pages/Gallery"));
+const GalleryPhoto = lazyWithReload(() => import("@/pages/GalleryPhoto"));
 const Home = lazyWithReload(() => import("@/pages/Home"));
 const Inboxes = lazyWithReload(() => import("@/pages/Inboxes"));
 const MemoDetail = lazyWithReload(() => import("@/pages/MemoDetail"));
@@ -100,7 +102,9 @@ export const routeConfig: RouteObject[] = [
               },
             ],
           },
+          { path: Routes.GALLERY, element: <Gallery /> },
           { path: "memos/:uid", element: <MemoDetail /> },
+          { path: "gallery/photos/:uid", element: <GalleryPhoto /> },
           { path: "memos/shares/:token", element: <MemoDetail /> },
           {
             element: <RequireAuthRoute />,

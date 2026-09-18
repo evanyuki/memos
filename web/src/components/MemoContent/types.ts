@@ -9,6 +9,7 @@ export interface MemoContentProps {
   memoName?: string;
   /** The card renders collapsed (ClampedSection), so footnote links navigate instead of scrolling. */
   compact?: boolean;
+  standalone?: boolean;
   className?: string;
   contentClassName?: string;
   onClick?: (e: React.MouseEvent) => void;

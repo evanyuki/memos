@@ -25,6 +25,7 @@ export interface MemoMarkdownRendererProps {
   memoName?: string;
   /** Whether the memo is rendered as a collapsed feed card. */
   compact?: boolean;
+  standalone?: boolean;
 }
 
 type RemarkPlugins = NonNullable<ComponentProps<typeof ReactMarkdown>["remarkPlugins"]>;
@@ -63,12 +64,14 @@ export const MemoMarkdownRendererCore = ({
   resolvedMentionUsernames,
   memoName,
   compact,
+  standalone,
   mathRemarkPlugins = [],
   mathRehypePlugins = [],
 }: MemoMarkdownRendererCoreProps) => {
   const markdownComponents: Components = {
     input: ({ node, ...inputProps }) => {
       if (node && isTaskListItemElement(node)) {
+        if (standalone) return <input {...inputProps} disabled readOnly />;
         return <TaskListItem {...inputProps} node={node} />;
       }
       return <input {...inputProps} />;
@@ -79,6 +82,7 @@ export const MemoMarkdownRendererCore = ({
         return <Mention {...spanProps} node={node} data-mention={username} resolved={resolvedMentionUsernames.has(username)} />;
       }
       if (node && isTagElement(node)) {
+        if (standalone) return <span {...spanProps} />;
         return <Tag {...spanProps} node={node} />;
       }
       return <span {...spanProps} />;
@@ -189,5 +193,6 @@ export const MemoMarkdownRenderer = memo(
     previous.attachments === next.attachments &&
     previous.memoName === next.memoName &&
     previous.compact === next.compact &&
+    previous.standalone === next.standalone &&
     haveEqualResolvedMentions(previous.resolvedMentionUsernames, next.resolvedMentionUsernames),
 );

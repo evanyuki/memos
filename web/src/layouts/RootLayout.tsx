@@ -14,6 +14,7 @@ import { useInstance } from "@/contexts/InstanceContext";
 import { MemoFilterProvider, useMemoFilterContext } from "@/contexts/MemoFilterContext";
 import useCurrentUser from "@/hooks/useCurrentUser";
 import useMediaQuery from "@/hooks/useMediaQuery";
+import { cn } from "@/lib/utils";
 import { buildAuthRoute, shouldGatePrivateInstance } from "@/utils/auth-redirect";
 import { useTranslate } from "@/utils/i18n";
 
@@ -46,6 +47,7 @@ const RootLayoutContent = () => {
   const prevPathnameRef = useRef<string | undefined>(undefined);
   const shellRef = useRef<HTMLDivElement>(null);
   const { width: sidebarWidth, minWidth, maxWidth, setWidth: setSidebarWidth } = useSidebarWidth();
+  const isGalleryRoute = pathname === "/gallery" || pathname.startsWith("/gallery/photos/");
 
   useEffect(() => {
     const prevPathname = prevPathnameRef.current;
@@ -61,15 +63,26 @@ const RootLayoutContent = () => {
   // Private instance (no InstanceURL configured): anonymous visitors may only reach
   // share links; everything else redirects to the sign-in page, preserving the intended
   // destination. Public instances keep the open Explore behavior for logged-out users.
-  if (shouldGatePrivateInstance({ isPrivateInstance: !profile.instanceUrl, isAuthenticated: !!currentUser, pathname })) {
+  if (
+    shouldGatePrivateInstance({
+      isPrivateInstance: !profile.instanceUrl,
+      isAuthenticated: !!currentUser,
+      pathname,
+      search: location.search,
+    })
+  ) {
     const redirect = `${pathname}${location.search}${location.hash}`;
     return <Navigate to={buildAuthRoute({ redirect })} replace />;
   }
 
   return (
     <AppSidebarProvider>
-      <div ref={shellRef} className="min-h-full w-full bg-background" style={{ [SIDEBAR_WIDTH_VAR]: `${sidebarWidth}px` } as CSSProperties}>
-        {md && (
+      <div
+        ref={shellRef}
+        className={cn("min-h-full w-full", isGalleryRoute ? "gallery-theme gallery-shell min-h-svh" : "bg-background")}
+        style={{ [SIDEBAR_WIDTH_VAR]: `${sidebarWidth}px` } as CSSProperties}
+      >
+        {md && !isGalleryRoute && (
           <div className="fixed inset-y-0 start-0 z-30 w-(--app-sidebar-width) border-e border-border/70">
             <AppSidebar />
             <SidebarResizeHandle
@@ -81,11 +94,18 @@ const RootLayoutContent = () => {
             />
           </div>
         )}
-        <MobileAppSidebar />
-        <main className="flex min-h-full w-full min-w-0 flex-col items-center md:ps-(--app-sidebar-width)">
-          <MobileAppHeader />
+        {!isGalleryRoute && <MobileAppSidebar />}
+        <main
+          className={cn(
+            "flex min-h-full w-full min-w-0 flex-col items-center",
+            isGalleryRoute ? "min-h-svh" : "md:ps-(--app-sidebar-width)",
+          )}
+        >
+          {!isGalleryRoute && <MobileAppHeader />}
           {profile.demo && <DemoBanner />}
-          <Outlet />
+          <div className={isGalleryRoute ? "gallery-shell w-full flex-1" : "contents"}>
+            <Outlet />
+          </div>
         </main>
         <QuickFindDialog />
       </div>

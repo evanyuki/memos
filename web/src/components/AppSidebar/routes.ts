@@ -8,6 +8,7 @@ export type SidebarRouteKind =
   | "views"
   | "daily-checklist"
   | "attachments"
+  | "gallery"
   | "inbox"
   | "settings"
   | "memo"
@@ -19,6 +20,7 @@ export const getSidebarRouteKind = (path: string): SidebarRouteKind => {
   if (path === ROUTES.VIEWS) return "views";
   if (path === ROUTES.DAILY_CHECKLIST || matchPath("/u/:username/daily-checklists/:date", path)) return "daily-checklist";
   if (path === ROUTES.ATTACHMENTS) return "attachments";
+  if (path === ROUTES.GALLERY || matchPath("/gallery/photos/:uid", path)) return "gallery";
   if (path === ROUTES.INBOX) return "inbox";
   if (path === ROUTES.SETTING) return "settings";
   if (matchPath("/memos/:uid", path) || matchPath(`${ROUTES.SHARED_MEMO}/:token`, path)) return "memo";

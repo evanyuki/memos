@@ -79,8 +79,13 @@ export function useSharedMemo(shareToken: string, options?: { enabled?: boolean 
  * Returns the share URL for a MemoShare resource.
  * The token is the last path segment of the share name (memos/{uid}/shares/{token}).
  */
-export function getShareUrl(share: MemoShare): string {
+export function getShareUrl(share: MemoShare, photoUID?: string): string {
   const token = share.name.split("/").pop() ?? "";
+  if (photoUID) {
+    const url = new URL(`/gallery/photos/${encodeURIComponent(photoUID)}`, window.location.origin);
+    url.searchParams.set("share_token", token);
+    return url.toString();
+  }
   return `${window.location.origin}/memos/shares/${token}`;
 }
 

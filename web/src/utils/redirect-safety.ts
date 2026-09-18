@@ -65,13 +65,19 @@ const PUBLIC_ROUTE_PREFIXES = [
 ] as const;
 
 const PUBLIC_DAILY_CHECKLIST_PATH = /^\/u\/[^/]+\/daily-checklists\/\d{4}-\d{2}-\d{2}\/?$/;
+const GALLERY_PHOTO_PATH = /^\/gallery\/photos\/[^/]+\/?$/;
 
 /**
  * Reports whether a given pathname corresponds to a page that unauthenticated
  * visitors are allowed to view without being bounced to the auth page.
  */
 export function isPublicRoute(path: string): boolean {
-  return PUBLIC_ROUTE_PREFIXES.some((route) => path.startsWith(route));
+  return (
+    path === "/gallery" ||
+    path === "/gallery/" ||
+    GALLERY_PHOTO_PATH.test(path) ||
+    PUBLIC_ROUTE_PREFIXES.some((route) => path.startsWith(route))
+  );
 }
 
 /**
@@ -82,14 +88,20 @@ export function isPublicRoute(path: string): boolean {
  * visitors except explicit share-link pages. Authenticated visitors and open
  * instances are never gated.
  */
-export function shouldGatePrivateInstance(params: { isPrivateInstance: boolean; isAuthenticated: boolean; pathname: string }): boolean {
-  const { isPrivateInstance, isAuthenticated, pathname } = params;
+export function shouldGatePrivateInstance(params: {
+  isPrivateInstance: boolean;
+  isAuthenticated: boolean;
+  pathname: string;
+  search?: string;
+}): boolean {
+  const { isPrivateInstance, isAuthenticated, pathname, search } = params;
   if (!isPrivateInstance || isAuthenticated) {
     return false;
   }
   const isSharedMemo = pathname.startsWith(`${ROUTES.SHARED_MEMO}/`);
   const isPublicDailyChecklist = PUBLIC_DAILY_CHECKLIST_PATH.test(pathname);
-  return !isSharedMemo && !isPublicDailyChecklist;
+  const isSharedGalleryPhoto = GALLERY_PHOTO_PATH.test(pathname) && !!new URLSearchParams(search).get("share_token");
+  return !isSharedMemo && !isPublicDailyChecklist && !isSharedGalleryPhoto;
 }
 
 /**

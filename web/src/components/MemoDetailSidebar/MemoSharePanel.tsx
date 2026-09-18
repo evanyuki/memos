@@ -30,13 +30,14 @@ function formatExpiry(share: MemoShare, t: ReturnType<typeof useTranslate>): str
 interface ShareLinkRowProps {
   share: MemoShare;
   memoName: string;
+  photoUID?: string;
 }
 
-function ShareLinkRow({ share, memoName }: ShareLinkRowProps) {
+function ShareLinkRow({ share, memoName, photoUID }: ShareLinkRowProps) {
   const t = useTranslate();
   const [copied, setCopied] = useState(false);
   const deleteShare = useDeleteMemoShare();
-  const url = getShareUrl(share);
+  const url = getShareUrl(share, photoUID);
 
   const handleCopy = async () => {
     await navigator.clipboard.writeText(url);
@@ -78,16 +79,15 @@ function ShareLinkRow({ share, memoName }: ShareLinkRowProps) {
   );
 }
 
-interface MemoSharePanelProps {
-  open: boolean;
-  onClose: () => void;
+interface MemoShareLinksProps {
   memoName: string;
+  photoUID?: string;
 }
 
-const MemoSharePanel = ({ open, onClose, memoName }: MemoSharePanelProps) => {
+export function MemoShareLinks({ memoName, photoUID }: MemoShareLinksProps) {
   const t = useTranslate();
   const [expiry, setExpiry] = useState<ExpiryOption>("never");
-  const { data: shares = [], isLoading } = useMemoShares(memoName, { enabled: open });
+  const { data: shares = [], isLoading } = useMemoShares(memoName);
   const createShare = useCreateMemoShare();
 
   const expiryOptions = useMemo(
@@ -109,58 +109,68 @@ const MemoSharePanel = ({ open, onClose, memoName }: MemoSharePanelProps) => {
   };
 
   return (
-    <Dialog open={open} onOpenChange={(v) => !v && onClose()}>
+    <div className="flex min-w-0 flex-col gap-4">
+      <div className="flex flex-col gap-2">
+        <p className="text-sm font-medium text-muted-foreground">{t("memo.share.active-links")}</p>
+        {isLoading ? (
+          <Loader2Icon className="h-4 w-4 animate-spin text-muted-foreground" />
+        ) : shares.length === 0 ? (
+          <p className="text-sm text-muted-foreground">{t("memo.share.no-links")}</p>
+        ) : (
+          <div className="flex flex-col gap-2">
+            {shares.map((share) => (
+              <ShareLinkRow key={share.name} share={share} memoName={memoName} photoUID={photoUID} />
+            ))}
+          </div>
+        )}
+      </div>
+
+      <div className="flex items-center gap-2">
+        <Select value={expiry} items={expiryOptions} onValueChange={(v) => setExpiry(v as ExpiryOption)}>
+          <SelectTrigger className="w-36">
+            <SelectValue />
+          </SelectTrigger>
+          <SelectContent>
+            {expiryOptions.map((option) => (
+              <SelectItem key={option.value} value={option.value}>
+                {option.label}
+              </SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
+        <Button onClick={handleCreate} disabled={createShare.isPending} className="flex-1">
+          {createShare.isPending ? (
+            <>
+              <Loader2Icon className="mr-2 h-4 w-4 animate-spin" />
+              {t("memo.share.creating")}
+            </>
+          ) : (
+            t("memo.share.create-link")
+          )}
+        </Button>
+      </div>
+    </div>
+  );
+}
+
+interface MemoSharePanelProps {
+  open: boolean;
+  onClose: () => void;
+  memoName: string;
+}
+
+const MemoSharePanel = ({ open, onClose, memoName }: MemoSharePanelProps) => {
+  const t = useTranslate();
+  return (
+    <Dialog open={open} onOpenChange={(value) => !value && onClose()}>
       <DialogContent className="sm:max-w-md">
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2">
-            <LinkIcon className="h-4 w-4" />
+            <LinkIcon className="size-4" />
             {t("memo.share.title")}
           </DialogTitle>
         </DialogHeader>
-
-        <div className="flex flex-col gap-4 py-2">
-          {/* Active links */}
-          <div className="flex flex-col gap-2">
-            <p className="text-sm font-medium text-muted-foreground">{t("memo.share.active-links")}</p>
-            {isLoading ? (
-              <Loader2Icon className="h-4 w-4 animate-spin text-muted-foreground" />
-            ) : shares.length === 0 ? (
-              <p className="text-sm text-muted-foreground">{t("memo.share.no-links")}</p>
-            ) : (
-              <div className="flex flex-col gap-2">
-                {shares.map((share) => (
-                  <ShareLinkRow key={share.name} share={share} memoName={memoName} />
-                ))}
-              </div>
-            )}
-          </div>
-
-          {/* Create new link */}
-          <div className="flex items-center gap-2">
-            <Select value={expiry} items={expiryOptions} onValueChange={(v) => setExpiry(v as ExpiryOption)}>
-              <SelectTrigger className="w-36">
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent>
-                {expiryOptions.map((option) => (
-                  <SelectItem key={option.value} value={option.value}>
-                    {option.label}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-            <Button onClick={handleCreate} disabled={createShare.isPending} className="flex-1">
-              {createShare.isPending ? (
-                <>
-                  <Loader2Icon className="mr-2 h-4 w-4 animate-spin" />
-                  {t("memo.share.creating")}
-                </>
-              ) : (
-                t("memo.share.create-link")
-              )}
-            </Button>
-          </div>
-        </div>
+        {open && <MemoShareLinks memoName={memoName} />}
       </DialogContent>
     </Dialog>
   );

@@ -402,6 +402,7 @@ const RouteSidebarContent = () => {
   if (kind === "daily-checklist") return location.pathname === ROUTES.DAILY_CHECKLIST ? <DailyChecklistSidebarContent /> : null;
   if (kind === "views") return <ViewsSection manageActive />;
   if (kind === "attachments") return <AttachmentsSidebarContent />;
+  if (kind === "gallery") return null;
   if (kind === "inbox") return <InboxSidebarContent />;
   if (kind === "settings") return <SettingsSidebarContent />;
   if (kind === "memo" && memoDetail) return <MemoDetailSidebarContent />;
@@ -494,6 +495,7 @@ const GlobalNavigation = () => {
 
   const items: GlobalNavItem[] = currentUser
     ? [
+        { id: "gallery", label: t("gallery.title"), path: ROUTES.GALLERY, icon: ImageIcon, active: routeKind === "gallery" },
         {
           id: "daily-checklist",
           label: t("daily-checklist.title"),
@@ -518,6 +520,7 @@ const GlobalNavigation = () => {
         },
       ]
     : [
+        { id: "gallery", label: t("gallery.title"), path: ROUTES.GALLERY, icon: ImageIcon, active: routeKind === "gallery" },
         {
           id: "explore",
           label: t("common.explore"),
@@ -687,11 +690,17 @@ const AppSidebar = ({ className }: { className?: string }) => {
   );
 };
 
-export const MobileAppHeader = () => {
+export const MobileAppHeader = ({ alwaysVisible = false, className }: { alwaysVisible?: boolean; className?: string }) => {
   const currentUser = useCurrentUser();
   const { setMobileOpen } = useAppSidebar();
   return (
-    <header className="sticky top-0 z-20 flex h-12 w-full items-center justify-start gap-1 border-b border-border/70 bg-background/90 px-2 backdrop-blur-md md:hidden">
+    <header
+      className={cn(
+        "sticky top-0 z-20 flex h-12 w-full items-center justify-start gap-1 border-b border-border/70 bg-background/90 px-2 backdrop-blur-md",
+        !alwaysVisible && "md:hidden",
+        className,
+      )}
+    >
       <Button variant="ghost" size="icon-sm" className="size-8" onClick={() => setMobileOpen(true)} aria-label="Open navigation">
         <MenuIcon className="size-[18px]" />
       </Button>

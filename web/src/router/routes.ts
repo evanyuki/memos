@@ -8,6 +8,7 @@ export const ROUTES = {
   DAILY_CHECKLIST: "/daily-checklist",
   SETTING: "/setting",
   EXPLORE: "/explore",
+  GALLERY: "/gallery",
   AUTH: "/auth",
   AUTH_SIGNUP: "/auth/signup",
   AUTH_ADMIN: "/auth/admin",
