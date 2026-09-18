@@ -297,17 +297,18 @@ export function useMemoComments(name: string, options?: { enabled?: boolean; pag
 
 // useInfiniteMemoComments paginates through every comment via nextPageToken, instead of
 // stopping at the server's default page size (the cause of comments being truncated to 10).
-export function useInfiniteMemoComments(name: string, options?: { enabled?: boolean; pageSize?: number }) {
+export function useInfiniteMemoComments(name: string, options?: { enabled?: boolean; pageSize?: number; staleTime?: number }) {
   const pageSize = options?.pageSize ?? DEFAULT_LIST_MEMOS_PAGE_SIZE;
   return useInfiniteQuery({
     queryKey: [...memoKeys.comments(name), "infinite", pageSize],
-    queryFn: async ({ pageParam }) => {
+    queryFn: async ({ pageParam, signal }) => {
       const response = await memoServiceClient.listMemoComments(
         create(ListMemoCommentsRequestSchema, {
           name,
           pageSize,
           pageToken: pageParam || "",
         }),
+        { signal },
       );
       return response;
     },
@@ -315,6 +316,6 @@ export function useInfiniteMemoComments(name: string, options?: { enabled?: bool
     getNextPageParam: (lastPage) => lastPage.nextPageToken || undefined,
     select: (data) => data.pages.flatMap((page) => page.memos),
     enabled: options?.enabled ?? true,
-    staleTime: 1000 * 60, // 1 minute
+    staleTime: options?.staleTime ?? 1000 * 60, // 1 minute
   });
 }
