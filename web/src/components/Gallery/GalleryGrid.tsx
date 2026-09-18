@@ -4,6 +4,7 @@ import { createContext, useContext, useMemo, useState } from "react";
 import { Link, useSearchParams } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import { useAuth } from "@/contexts/AuthContext";
+import { useGalleryInfiniteLoading } from "@/hooks/useGalleryInfiniteLoading";
 import { type GalleryPhoto, readGalleryFilters, useGalleryPhotos } from "@/hooks/useGalleryQueries";
 import useMediaQuery from "@/hooks/useMediaQuery";
 import { findTagMetadata } from "@/lib/tag";
@@ -81,13 +82,33 @@ export default function GalleryGrid() {
   const filters = readGalleryFilters(params);
   const query = useGalleryPhotos(filters);
   const desktop = useMediaQuery("lg");
+  const loadError = query.isError && !query.isFetchNextPageError;
   const uniquePhotos = useMemo(
     () =>
-      query.isError
+      loadError
         ? []
         : [...new Map((query.data?.pages.flatMap((page) => page.photos) ?? []).map((photo) => [photo.attachment.name, photo])).values()],
-    [query.data, query.isError],
+    [query.data, loadError],
   );
+  const [layout, setLayout] = useState({ photos: uniquePhotos, version: 0 });
+  if (layout.photos !== uniquePhotos) {
+    // Appending pages keeps measured cells. Refetches that remove, reorder, or resize
+    // existing photos must clear masonic's index-based position cache.
+    const preservesPositions = layout.photos.every((photo, index) => {
+      const next = uniquePhotos[index]?.attachment;
+      return next?.name === photo.attachment.name && next.mediaMetadata === photo.attachment.mediaMetadata;
+    });
+    setLayout({ photos: uniquePhotos, version: layout.version + (preservesPositions ? 0 : 1) });
+  }
+  const onRender = useGalleryInfiniteLoading({
+    resetKey: `${params}:${layout.version}`,
+    nextPageToken: query.data?.pages.at(-1)?.nextPageToken ?? "",
+    itemCount: uniquePhotos.length,
+    hasNextPage: query.hasNextPage,
+    isFetching: query.isFetching,
+    isError: query.isError,
+    fetchNextPage: query.fetchNextPage,
+  });
   const ids = uniquePhotos.map(photoUid);
   return (
     <div className="gallery-grid-page">
@@ -97,7 +118,7 @@ export default function GalleryGrid() {
           <LoaderCircleIcon className="size-6 animate-spin" aria-label={t("resource.fetching-data")} />
         </div>
       )}
-      {query.isError && (
+      {loadError && (
         <div role="alert" className="py-10 text-center">
           <p className="mb-3 text-muted-foreground">{t("gallery.load-error")}</p>
           <Button variant="outline" onClick={() => void query.refetch()}>
@@ -114,7 +135,7 @@ export default function GalleryGrid() {
       <GalleryNavigationContext value={ids}>
         <div className="p-1">
           <Masonry
-            key={`${params}:${ids.join(",")}`}
+            key={`${params}:${layout.version}`}
             className="gallery-masonry"
             items={uniquePhotos}
             render={GalleryCard}
@@ -124,16 +145,27 @@ export default function GalleryGrid() {
             columnGutter={4}
             rowGutter={4}
             itemHeightEstimate={400}
+            onRender={onRender}
           />
         </div>
       </GalleryNavigationContext>
-      {query.hasNextPage && (
-        <div className="gallery-load-more flex justify-center py-6">
-          <Button variant="outline" className="rounded-full" disabled={query.isFetchingNextPage} onClick={() => void query.fetchNextPage()}>
-            {query.isFetchingNextPage ? t("resource.fetching-data") : t("memo.load-more")}
+      {query.isFetchNextPageError ? (
+        <div role="alert" className="flex flex-col items-center gap-3 py-6">
+          <p className="text-sm text-muted-foreground">{t("gallery.load-error")}</p>
+          <Button variant="outline" disabled={query.isFetching} onClick={() => void query.fetchNextPage()}>
+            {t("gallery.retry")}
           </Button>
         </div>
-      )}
+      ) : query.isFetchingNextPage ? (
+        <div role="status" className="flex items-center justify-center gap-2 py-6 text-sm text-muted-foreground">
+          <LoaderCircleIcon className="size-4 animate-spin" aria-hidden="true" />
+          {t("resource.fetching-data")}
+        </div>
+      ) : !query.hasNextPage && uniquePhotos.length > 0 ? (
+        <div role="status" className="py-6 text-center text-xs text-muted-foreground">
+          {t("gallery.end-of-gallery")}
+        </div>
+      ) : null}
     </div>
   );
 }

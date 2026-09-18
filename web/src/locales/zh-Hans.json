@@ -1137,6 +1137,14 @@
     "highlight-ratio": "高光比例",
     "preview-analysis": "基于预览图取样",
     "histogram": "直方图",
-    "histogram-description": "RGB 与亮度直方图"
+    "histogram-description": "RGB 与亮度直方图",
+    "end-of-gallery": "已经到底了",
+    "share-error": "无法打开分享，请复制链接或下载图片。",
+    "share-system": "系统分享",
+    "share-preparing-image": "正在准备分享图片…",
+    "share-image-error": "图片准备失败，请重试。",
+    "share-links-error": "无法加载分享链接。",
+    "share-download": "下载图片",
+    "share-instagram-download": "图片已下载，请在 Instagram 中上传。"
   }
 }

@@ -7,7 +7,15 @@ import { AttachmentSchema } from "@/types/proto/api/v1/attachment_service_pb";
 import { MemoSchema, Visibility } from "@/types/proto/api/v1/memo_service_pb";
 
 const { result, auth, loadMore } = vi.hoisted(() => ({
-  result: { data: undefined as unknown, isPending: false, isError: false, hasNextPage: true, isFetchingNextPage: false },
+  result: {
+    data: undefined as unknown,
+    isPending: false,
+    isError: false,
+    hasNextPage: true,
+    isFetching: false,
+    isFetchingNextPage: false,
+    isFetchNextPageError: false,
+  },
   auth: { currentUser: undefined as { name: string } | undefined, userTagsSetting: undefined },
   loadMore: vi.fn(),
 }));
@@ -46,6 +54,9 @@ function mount() {
 beforeEach(() => {
   result.data = undefined;
   result.isError = false;
+  result.isFetchNextPageError = false;
+  result.isFetchingNextPage = false;
+  result.hasNextPage = true;
   auth.currentUser = undefined;
   loadMore.mockResolvedValue(undefined);
 });
@@ -63,10 +74,24 @@ describe("gallery grid", () => {
   it("allows more pages after an empty memo page and omits upload/private filters for visitors", () => {
     mount();
     expect(screen.getByText("gallery.empty-page")).toBeInTheDocument();
-    fireEvent.click(screen.getByRole("button", { name: "memo.load-more" }));
+    expect(screen.queryByRole("button", { name: "memo.load-more" })).not.toBeInTheDocument();
     expect(loadMore).toHaveBeenCalledOnce();
     expect(screen.queryByRole("link", { name: "gallery.add-photos" })).not.toBeInTheDocument();
     expect(screen.queryByRole("button", { name: "gallery.visibility-private" })).not.toBeInTheDocument();
+  });
+  it("keeps loaded images when pagination fails and offers an explicit retry", async () => {
+    result.data = {
+      pages: [
+        { photos: [{ attachment: create(AttachmentSchema, { name: "attachments/one", filename: "One.jpg" }), memo: create(MemoSchema) }] },
+      ],
+    };
+    result.isError = true;
+    result.isFetchNextPageError = true;
+    mount();
+    expect(await screen.findByRole("img", { name: "One.jpg" })).toBeInTheDocument();
+    expect(loadMore).not.toHaveBeenCalled();
+    fireEvent.click(screen.getByRole("button", { name: "gallery.retry" }));
+    expect(loadMore).toHaveBeenCalledOnce();
   });
   it("stores visibility and exact hierarchical tags in URL filters", async () => {
     auth.currentUser = { name: "users/owner" };
@@ -101,5 +126,29 @@ describe("gallery grid", () => {
       </MemoryRouter>,
     );
     await waitFor(() => expect(screen.queryByRole("img", { name: "Renamed.jpg" })).not.toBeInTheDocument());
+  });
+  it("preserves existing cells when appending and clears cached positions after photos are removed", async () => {
+    const first = { attachment: create(AttachmentSchema, { name: "attachments/one", filename: "One.jpg" }), memo: create(MemoSchema) };
+    const second = { attachment: create(AttachmentSchema, { name: "attachments/two", filename: "Two.jpg" }), memo: create(MemoSchema) };
+    result.hasNextPage = false;
+    result.data = { pages: [{ photos: [first] }] };
+    const view = mount();
+    const firstImage = await screen.findByRole("img", { name: "One.jpg" });
+    result.data = { pages: [{ photos: [first] }, { photos: [second] }] };
+    view.rerender(
+      <MemoryRouter>
+        <GalleryGrid />
+      </MemoryRouter>,
+    );
+    expect(await screen.findByRole("img", { name: "Two.jpg" })).toBeInTheDocument();
+    expect(screen.getByRole("img", { name: "One.jpg" })).toBe(firstImage);
+    result.data = { pages: [{ photos: [second] }] };
+    view.rerender(
+      <MemoryRouter>
+        <GalleryGrid />
+      </MemoryRouter>,
+    );
+    expect(await screen.findByRole("img", { name: "Two.jpg" })).toBeInTheDocument();
+    expect(screen.queryByRole("img", { name: "One.jpg" })).not.toBeInTheDocument();
   });
 });

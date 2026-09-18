@@ -1,16 +1,17 @@
-import { CopyIcon, LoaderCircleIcon } from "lucide-react";
+import { timestampDate } from "@bufbuild/protobuf/wkt";
+import { LoaderCircleIcon } from "lucide-react";
 import { useState } from "react";
-import toast from "react-hot-toast";
-import { MemoShareLinks } from "@/components/MemoDetailSidebar/MemoSharePanel";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { useAuth } from "@/contexts/AuthContext";
 import type { GalleryPhoto } from "@/hooks/useGalleryQueries";
+import { getShareUrl, useMemoShares } from "@/hooks/useMemoShareQueries";
 import { usePhotoAnalysis } from "@/hooks/usePhotoAnalysis";
 import { cn } from "@/lib/utils";
 import { Visibility } from "@/types/proto/api/v1/memo_service_pb";
 import { getAttachmentThumbnailUrl } from "@/utils/attachment";
 import { useTranslate } from "@/utils/i18n";
+import GalleryShareActions from "./GalleryShareActions";
 import { galleryAccentStyle } from "./gallery-accent";
 
 function SharePreview({ src, title }: { src: string; title: string }) {
@@ -51,6 +52,15 @@ function SharePreview({ src, title }: { src: string; title: string }) {
   );
 }
 
+function PrivatePhotoShareActions({ photo, title }: { photo: GalleryPhoto; title: string }) {
+  const { data: shares = [], isError } = useMemoShares(photo.memo.name);
+  const share = isError
+    ? undefined
+    : shares.find((candidate) => !candidate.expireTime || timestampDate(candidate.expireTime).getTime() > Date.now());
+  const uid = photo.attachment.name.split("/").pop()!;
+  return <GalleryShareActions attachment={photo.attachment} shareUrl={share ? getShareUrl(share, uid) : undefined} title={title} />;
+}
+
 export default function GallerySharePanel({ photo, onClose }: { photo: GalleryPhoto; onClose: () => void }) {
   const t = useTranslate();
   const { currentUser } = useAuth();
@@ -62,15 +72,6 @@ export default function GallerySharePanel({ photo, onClose }: { photo: GalleryPh
   const analysis = usePhotoAnalysis(thumbnailUrl);
   const publicUrl =
     memo.visibility === Visibility.PUBLIC ? `${window.location.origin}/gallery/photos/${encodeURIComponent(uid)}` : undefined;
-  const copyLink = async () => {
-    if (!publicUrl) return;
-    try {
-      await navigator.clipboard.writeText(publicUrl);
-      toast.success(t("gallery.link-copied"));
-    } catch {
-      toast.error(t("gallery.copy-error"));
-    }
-  };
 
   return (
     <Dialog open onOpenChange={(open) => !open && onClose()}>
@@ -83,22 +84,11 @@ export default function GallerySharePanel({ photo, onClose }: { photo: GalleryPh
           <p className="text-xs font-medium text-muted-foreground">{t("gallery.share-photo")}</p>
           <DialogTitle className="break-words text-lg font-semibold">{title}</DialogTitle>
         </DialogHeader>
-        {publicUrl && (
-          <div className="flex min-w-0 items-center gap-2 rounded-lg border border-primary/20 bg-[var(--gallery-fill)] px-3 py-2">
-            <span className="min-w-0 flex-1 truncate text-xs text-muted-foreground" title={publicUrl}>
-              {publicUrl}
-            </span>
-            <Button variant="ghost" size="icon" className="size-8 shrink-0" onClick={copyLink} aria-label={t("gallery.copy-link")}>
-              <CopyIcon className="size-4" />
-            </Button>
-          </div>
-        )}
         <SharePreview key={thumbnailUrl} src={thumbnailUrl} title={title} />
-        {owner && (
-          <>
-            <MemoShareLinks memoName={memo.name} photoUID={uid} />
-            <p className="text-xs text-muted-foreground">{t("gallery.share-scope")}</p>
-          </>
+        {!publicUrl && owner ? (
+          <PrivatePhotoShareActions photo={photo} title={title} />
+        ) : (
+          <GalleryShareActions attachment={attachment} shareUrl={publicUrl} title={title} />
         )}
       </DialogContent>
     </Dialog>

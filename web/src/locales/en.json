@@ -1152,6 +1152,14 @@
     "highlight-ratio": "Highlight ratio",
     "preview-analysis": "Sampled from the preview",
     "histogram": "Histogram",
-    "histogram-description": "RGB and luminance histogram"
+    "histogram-description": "RGB and luminance histogram",
+    "end-of-gallery": "You’ve reached the end",
+    "share-error": "Could not open sharing. Try copying the link or downloading the image.",
+    "share-system": "System",
+    "share-preparing-image": "Preparing image for sharing…",
+    "share-image-error": "Could not prepare the image. Try again.",
+    "share-links-error": "Could not load share links.",
+    "share-download": "Download",
+    "share-instagram-download": "Image downloaded. Upload it in Instagram."
   }
 }

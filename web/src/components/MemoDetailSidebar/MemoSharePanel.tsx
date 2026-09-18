@@ -40,9 +40,13 @@ function ShareLinkRow({ share, memoName, photoUID }: ShareLinkRowProps) {
   const url = getShareUrl(share, photoUID);
 
   const handleCopy = async () => {
-    await navigator.clipboard.writeText(url);
-    setCopied(true);
-    setTimeout(() => setCopied(false), 2000);
+    try {
+      await navigator.clipboard.writeText(url);
+      setCopied(true);
+      setTimeout(() => setCopied(false), 2000);
+    } catch {
+      toast.error(t("gallery.copy-error"));
+    }
   };
 
   const handleRevoke = async () => {
@@ -87,7 +91,8 @@ interface MemoShareLinksProps {
 export function MemoShareLinks({ memoName, photoUID }: MemoShareLinksProps) {
   const t = useTranslate();
   const [expiry, setExpiry] = useState<ExpiryOption>("never");
-  const { data: shares = [], isLoading } = useMemoShares(memoName);
+  const { data: shares = [], isLoading, isError, refetch } = useMemoShares(memoName);
+  const activeShares = shares.filter((share) => !share.expireTime || timestampDate(share.expireTime).getTime() > Date.now());
   const createShare = useCreateMemoShare();
 
   const expiryOptions = useMemo(
@@ -114,11 +119,18 @@ export function MemoShareLinks({ memoName, photoUID }: MemoShareLinksProps) {
         <p className="text-sm font-medium text-muted-foreground">{t("memo.share.active-links")}</p>
         {isLoading ? (
           <Loader2Icon className="h-4 w-4 animate-spin text-muted-foreground" />
-        ) : shares.length === 0 ? (
+        ) : isError ? (
+          <div role="alert" className="flex items-center justify-between gap-2 text-sm text-muted-foreground">
+            <span>{t("gallery.share-links-error")}</span>
+            <Button variant="ghost" size="sm" onClick={() => void refetch()}>
+              {t("gallery.retry")}
+            </Button>
+          </div>
+        ) : activeShares.length === 0 ? (
           <p className="text-sm text-muted-foreground">{t("memo.share.no-links")}</p>
         ) : (
           <div className="flex flex-col gap-2">
-            {shares.map((share) => (
+            {activeShares.map((share) => (
               <ShareLinkRow key={share.name} share={share} memoName={memoName} photoUID={photoUID} />
             ))}
           </div>

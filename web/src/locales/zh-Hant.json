@@ -1099,5 +1099,15 @@
     "select-visibility": "瀏覽權限",
     "tags": "標籤",
     "upload-attachment": "上傳附件"
+  },
+  "gallery": {
+    "end-of-gallery": "已經到底了",
+    "share-error": "無法開啟分享，請複製連結或下載圖片。",
+    "share-system": "系統分享",
+    "share-preparing-image": "正在準備分享圖片…",
+    "share-image-error": "圖片準備失敗，請重試。",
+    "share-links-error": "無法載入分享連結。",
+    "share-download": "下載圖片",
+    "share-instagram-download": "圖片已下載，請在 Instagram 中上傳。"
   }
 }

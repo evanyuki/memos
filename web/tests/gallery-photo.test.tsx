@@ -16,15 +16,18 @@ vi.mock("@/contexts/AuthContext", () => ({ useAuth: () => auth }));
 vi.mock("@/hooks/useMediaQuery", () => ({ __esModule: true, default: () => false }));
 vi.mock("@/hooks/useGalleryQueries", () => ({ galleryKeys: { all: ["gallery"] } }));
 vi.mock("@/hooks/useMemoQueries", () => ({ useUpdateMemo: () => ({ mutateAsync: mutate }) }));
-vi.mock("@/hooks/useMemoShareQueries", () => ({ withShareAttachmentLinks: (items: unknown) => items }));
+vi.mock("@/hooks/useMemoShareQueries", () => ({
+  withShareAttachmentLinks: (items: unknown) => items,
+  useMemoShares: () => ({ data: [], isError: false }),
+}));
+vi.mock("@/hooks/useGalleryShareFile", () => ({
+  useGalleryShareFile: () => ({ data: new File(["image"], "Sunset.jpg", { type: "image/jpeg" }), isLoading: false, isError: false }),
+}));
 vi.mock("@/components/MemoContent/MentionResolutionContext", () => ({
   MentionResolutionProvider: ({ children }: { children: ReactNode }) => children,
 }));
 vi.mock("@/components/MemoContent", () => ({ default: () => <p>Description</p> }));
 vi.mock("@/components/MediaMetadataDetails", () => ({ default: () => <div>Metadata</div> }));
-vi.mock("@/components/MemoDetailSidebar/MemoSharePanel", () => ({
-  MemoShareLinks: ({ photoUID }: { photoUID: string }) => <div data-testid="share-links">{photoUID}</div>,
-}));
 vi.mock("@/utils/i18n", () => ({ useTranslate: () => (key: string) => key }));
 const attachment = create(AttachmentSchema, { name: "attachments/photo1", filename: "Sunset.jpg", type: "image/jpeg" });
 const second = create(AttachmentSchema, { name: "attachments/photo2", filename: "Night.jpg", type: "image/jpeg" });
@@ -108,7 +111,7 @@ describe("gallery photo detail", () => {
     expect(writeText).not.toHaveBeenCalled();
     fireEvent.click(screen.getByRole("button", { name: "gallery.copy-link" }));
     await waitFor(() => expect(writeText).toHaveBeenCalledWith(`${window.location.origin}/gallery/photos/photo1`));
-    expect(screen.queryByTestId("share-links")).not.toBeInTheDocument();
+    expect(screen.queryByText("memo.share.active-links")).not.toBeInTheDocument();
   });
   it("only updates the source memo after confirming the shared visibility scope", async () => {
     mount(Visibility.PROTECTED);
@@ -135,7 +138,10 @@ describe("gallery photo detail", () => {
     mount();
     expect(screen.queryByRole("button", { name: "gallery.copy-link" })).not.toBeInTheDocument();
     fireEvent.click(screen.getByRole("button", { name: "common.share" }));
-    expect(screen.getByTestId("share-links")).toHaveTextContent("photo1");
+    expect(screen.getByRole("button", { name: "Instagram" })).toBeEnabled();
+    expect(screen.getByRole("button", { name: "gallery.share-download" })).toBeEnabled();
+    expect(screen.queryByRole("button", { name: "memo.share.create-link" })).not.toBeInTheDocument();
+    expect(screen.queryByRole("link", { name: "X" })).not.toBeInTheDocument();
     expect(screen.getByRole("img", { name: "Sunset" })).toHaveAttribute(
       "src",
       `${window.location.origin}/file/attachments/photo1/Sunset.jpg?thumbnail=true`,
