@@ -154,11 +154,20 @@ const CollageVisualItem = ({
 
 const SingleVisualItem = ({ item, onPreview }: { item: VisualItem; onPreview?: () => void }) => {
   const motionPreviewProps = item.kind === "motion" ? getMotionPreviewProps(item) : undefined;
+  const dimensions = item.attachments.find((attachment) => attachment.type.startsWith("image/"))?.mediaMetadata;
 
   if (item.kind === "image") {
     return (
       <VisualTile className="inline-block max-w-full" onPreview={onPreview} label={item.filename}>
-        <img src={item.posterUrl} alt={item.filename} className={NATURAL_MEDIA_CLASS} loading="lazy" decoding="async" />
+        <img
+          src={item.posterUrl}
+          alt={item.filename}
+          width={dimensions?.width || undefined}
+          height={dimensions?.height || undefined}
+          className={NATURAL_MEDIA_CLASS}
+          loading="lazy"
+          decoding="async"
+        />
       </VisualTile>
     );
   }

@@ -160,10 +160,13 @@ export const MemoMarkdownRendererCore = ({
     img: ({ src, node, ...props }) => {
       if (!src) return null;
       const item = resolveImageVisualItem(src, props.alt ?? "", attachments);
+      const dimensions = item.attachments.find((attachment) => attachment.type.startsWith("image/"))?.mediaMetadata;
       return (
         <Image
           {...props}
-          src={item.kind === "motion" ? item.posterUrl : item.sourceUrl}
+          src={item.posterUrl}
+          intrinsicWidth={dimensions?.width || undefined}
+          intrinsicHeight={dimensions?.height || undefined}
           onPreview={
             onImagePreview && !node?.properties["data-memo-linked-image"] ? () => onImagePreview([item.previewItem], 0) : undefined
           }
