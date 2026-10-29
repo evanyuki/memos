@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useEffect, useRef } from "react";
 
 interface GalleryInfiniteLoadingOptions {
   resetKey: string;
@@ -10,7 +10,7 @@ interface GalleryInfiniteLoadingOptions {
   fetchNextPage: () => Promise<unknown>;
 }
 
-/** Load ahead of the rendered masonry range, including pages without photos. */
+/** Load when the gallery's end approaches the viewport. */
 export function useGalleryInfiniteLoading({
   resetKey,
   nextPageToken,
@@ -20,24 +20,37 @@ export function useGalleryInfiniteLoading({
   isError,
   fetchNextPage,
 }: GalleryInfiniteLoadingOptions) {
-  const [range, setRange] = useState({ resetKey, stopIndex: -1 });
-  const requestedPage = useRef<string | undefined>(undefined);
-  const pageKey = `${resetKey}:${nextPageToken}`;
-  const onRender = useCallback(
-    (_startIndex: number, stopIndex: number) => {
-      setRange((previous) => (previous.resetKey === resetKey && previous.stopIndex === stopIndex ? previous : { resetKey, stopIndex }));
-    },
-    [resetKey],
-  );
+  const sentinelRef = useRef<HTMLDivElement>(null);
+  const requestedPages = useRef({ resetKey, tokens: new Set<string>() });
 
   useEffect(() => {
-    const nearEnd = itemCount === 0 || (range.resetKey === resetKey && range.stopIndex >= Math.max(0, itemCount - 12));
-    if (!nearEnd || !hasNextPage || isFetching || isError || requestedPage.current === pageKey) return;
-    requestedPage.current = pageKey;
-    void fetchNextPage().catch(() => {
-      // React Query owns the error state; the grid offers an explicit retry.
-    });
-  }, [fetchNextPage, hasNextPage, isError, isFetching, itemCount, pageKey, range, resetKey]);
+    if (requestedPages.current.resetKey !== resetKey) {
+      requestedPages.current = { resetKey, tokens: new Set() };
+    }
+    const sentinel = sentinelRef.current;
+    if (!sentinel || !hasNextPage || !nextPageToken || isFetching || isError) return;
+    const loadNearViewport = () => {
+      const bounds = sentinel.getBoundingClientRect();
+      if (bounds.top > window.innerHeight + 400 || bounds.bottom < 0 || requestedPages.current.tokens.has(nextPageToken)) return;
+      requestedPages.current.tokens.add(nextPageToken);
+      void fetchNextPage().catch(() => {
+        // React Query owns the error state; the grid offers an explicit retry.
+      });
+    };
+    if (typeof IntersectionObserver !== "undefined") {
+      const observer = new IntersectionObserver(loadNearViewport, { rootMargin: "400px 0px" });
+      observer.observe(sentinel);
+      return () => observer.disconnect();
+    }
+    const frame = requestAnimationFrame(loadNearViewport);
+    window.addEventListener("scroll", loadNearViewport, { passive: true });
+    window.addEventListener("resize", loadNearViewport);
+    return () => {
+      cancelAnimationFrame(frame);
+      window.removeEventListener("scroll", loadNearViewport);
+      window.removeEventListener("resize", loadNearViewport);
+    };
+  }, [fetchNextPage, hasNextPage, isError, isFetching, itemCount, nextPageToken, resetKey]);
 
-  return onRender;
+  return sentinelRef;
 }

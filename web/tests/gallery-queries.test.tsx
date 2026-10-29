@@ -9,7 +9,9 @@ import { AttachmentSchema } from "@/types/proto/api/v1/attachment_service_pb";
 import { MemoSchema, Visibility } from "@/types/proto/api/v1/memo_service_pb";
 
 vi.mock("@/connect", () => ({ getRequestToken: vi.fn(), refreshAccessToken: vi.fn() }));
-vi.mock("@/contexts/AuthContext", () => ({ useAuth: () => ({ currentUser: { name: "users/owner" }, isInitialized: true }) }));
+vi.mock("@/contexts/AuthContext", () => ({
+  useAuth: () => ({ currentUser: { name: "users/owner" }, isIdentityInitialized: true, isInitialized: true }),
+}));
 const photoJSON = () => ({
   attachment: toJson(
     AttachmentSchema,

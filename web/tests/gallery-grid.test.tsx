@@ -16,7 +16,7 @@ const { result, auth, loadMore } = vi.hoisted(() => ({
     isFetchingNextPage: false,
     isFetchNextPageError: false,
   },
-  auth: { currentUser: undefined as { name: string } | undefined, userTagsSetting: undefined },
+  auth: { currentUser: undefined as { name: string } | undefined, userTagsSetting: undefined, isUserSettingsInitialized: true },
   loadMore: vi.fn(),
 }));
 vi.mock("@/contexts/AuthContext", () => ({ useAuth: () => auth }));
@@ -71,11 +71,12 @@ describe("gallery grid", () => {
     expect(screen.getAllByRole("textbox")).toHaveLength(1);
   });
 
-  it("allows more pages after an empty memo page and omits upload/private filters for visitors", () => {
+  it("allows more pages after an empty memo page and omits upload/private filters for visitors", async () => {
+    result.data = { pages: [{ photos: [], nextPageToken: "next" }] };
     mount();
     expect(screen.getByText("gallery.empty-page")).toBeInTheDocument();
     expect(screen.queryByRole("button", { name: "memo.load-more" })).not.toBeInTheDocument();
-    expect(loadMore).toHaveBeenCalledOnce();
+    await waitFor(() => expect(loadMore).toHaveBeenCalledOnce());
     expect(screen.queryByRole("link", { name: "gallery.add-photos" })).not.toBeInTheDocument();
     expect(screen.queryByRole("button", { name: "gallery.visibility-private" })).not.toBeInTheDocument();
   });

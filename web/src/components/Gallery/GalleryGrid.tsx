@@ -81,17 +81,19 @@ function GalleryCard({ data: photo, width, index }: RenderComponentProps<Gallery
 
 export default function GalleryGrid() {
   const t = useTranslate();
+  const { isUserSettingsInitialized } = useAuth();
   const [params] = useSearchParams();
   const filters = readGalleryFilters(params);
   const query = useGalleryPhotos(filters);
   const desktop = useMediaQuery("lg");
   const loadError = query.isError && !query.isFetchNextPageError;
+  const isDisplayPending = query.isPending || !isUserSettingsInitialized;
   const uniquePhotos = useMemo(
     () =>
-      loadError
+      loadError || !isUserSettingsInitialized
         ? []
         : [...new Map((query.data?.pages.flatMap((page) => page.photos) ?? []).map((photo) => [photo.attachment.name, photo])).values()],
-    [query.data, loadError],
+    [query.data, loadError, isUserSettingsInitialized],
   );
   const [layout, setLayout] = useState({ photos: uniquePhotos, version: 0 });
   if (layout.photos !== uniquePhotos) {
@@ -103,11 +105,11 @@ export default function GalleryGrid() {
     });
     setLayout({ photos: uniquePhotos, version: layout.version + (preservesPositions ? 0 : 1) });
   }
-  const onRender = useGalleryInfiniteLoading({
-    resetKey: `${params}:${layout.version}`,
+  const loadMoreRef = useGalleryInfiniteLoading({
+    resetKey: params.toString(),
     nextPageToken: query.data?.pages.at(-1)?.nextPageToken ?? "",
     itemCount: uniquePhotos.length,
-    hasNextPage: query.hasNextPage,
+    hasNextPage: !isDisplayPending && query.hasNextPage,
     isFetching: query.isFetching,
     isError: query.isError,
     fetchNextPage: query.fetchNextPage,
@@ -116,7 +118,7 @@ export default function GalleryGrid() {
   return (
     <div className="gallery-grid-page">
       <GalleryPageHeader photoCount={uniquePhotos.length} />
-      {query.isPending && (
+      {isDisplayPending && (
         <div role="status" className="flex justify-center py-20">
           <LoaderCircleIcon className="size-6 animate-spin" aria-label={t("resource.fetching-data")} />
         </div>
@@ -129,7 +131,7 @@ export default function GalleryGrid() {
           </Button>
         </div>
       )}
-      {!query.isPending && !query.isError && uniquePhotos.length === 0 && (
+      {!isDisplayPending && !query.isError && uniquePhotos.length === 0 && (
         <div className="flex flex-col items-center gap-3 py-20 text-muted-foreground">
           <CameraIcon className="size-9" strokeWidth={1} />
           <p>{t(query.hasNextPage ? "gallery.empty-page" : "gallery.empty")}</p>
@@ -148,10 +150,10 @@ export default function GalleryGrid() {
             columnGutter={4}
             rowGutter={4}
             itemHeightEstimate={400}
-            onRender={onRender}
           />
         </div>
       </GalleryNavigationContext>
+      <div ref={loadMoreRef} className="h-px w-full" aria-hidden />
       {query.isFetchNextPageError ? (
         <div role="alert" className="flex flex-col items-center gap-3 py-6">
           <p className="text-sm text-muted-foreground">{t("gallery.load-error")}</p>

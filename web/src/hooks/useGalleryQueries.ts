@@ -60,7 +60,7 @@ export function readGalleryFilters(params: URLSearchParams): GalleryFilters {
 }
 
 export function useGalleryPhotos(filters: GalleryFilters) {
-  const { currentUser, isInitialized } = useAuth();
+  const { currentUser, isIdentityInitialized } = useAuth();
   return useInfiniteQuery({
     queryKey: [...galleryKeys.all, "list", currentUser?.name ?? "guest", filters],
     queryFn: async ({ pageParam, signal }) => {
@@ -73,8 +73,8 @@ export function useGalleryPhotos(filters: GalleryFilters) {
     },
     initialPageParam: "",
     getNextPageParam: (page) => page.nextPageToken || undefined,
-    enabled: isInitialized,
-    staleTime: 0,
+    enabled: isIdentityInitialized,
+    staleTime: 30_000,
     retry: false,
   });
 }
