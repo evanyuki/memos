@@ -25,6 +25,32 @@ const DOUBLE_TAP_ZOOM = 2;
 
 const clampZoom = (scale: number) => Math.min(MAX_ZOOM, Math.max(MIN_ZOOM, scale));
 
+// Keep the feed thumbnail visible while only the selected original loads and decodes.
+const PreviewImage = ({ src, posterUrl, alt, ...props }: React.ComponentProps<"img"> & { src: string; posterUrl?: string }) => {
+  const [loadedSource, setLoadedSource] = useState<string>();
+
+  useEffect(() => {
+    if (!posterUrl || posterUrl === src) return;
+
+    let cancelled = false;
+    const image = new window.Image();
+    image.decoding = "async";
+    image.onload = async () => {
+      await image.decode?.().catch(() => {});
+      if (!cancelled) setLoadedSource(src);
+    };
+    image.src = src;
+
+    return () => {
+      cancelled = true;
+      image.onload = null;
+      image.removeAttribute("src");
+    };
+  }, [src, posterUrl]);
+
+  return <img {...props} src={loadedSource === src ? src : posterUrl || src} alt={alt} onError={() => setLoadedSource(src)} />;
+};
+
 function PreviewImageDialog({ open, onOpenChange, imgUrls = [], items, initialIndex = 0 }: Props) {
   const t = useTranslate();
   const sm = useMediaQuery("sm");
@@ -212,8 +238,10 @@ function PreviewImageDialog({ open, onOpenChange, imgUrls = [], items, initialIn
                 )}
               />
             ) : (
-              <img
+              <PreviewImage
+                key={currentItem.id}
                 src={currentItem.sourceUrl}
+                posterUrl={currentItem.posterUrl}
                 alt={`Preview image ${safeIndex + 1} of ${itemCount}`}
                 className={cn(
                   "max-h-[calc(100vh-8rem)] max-w-[calc(100vw-1.5rem)] rounded-md object-contain select-none sm:max-h-[calc(100vh-7rem)] sm:max-w-[calc(100vw-8rem)]",

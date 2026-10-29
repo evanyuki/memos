@@ -1,5 +1,5 @@
 import { create } from "@bufbuild/protobuf";
-import { fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { act, fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { describe, expect, it, vi } from "vitest";
 import PreviewImageDialog from "@/components/PreviewImageDialog";
 import {
@@ -74,6 +74,69 @@ const buildAttachmentWithPhotoMetadata = () =>
   });
 
 describe("<PreviewImageDialog>", () => {
+  const mockOriginalRequests = () => {
+    const requests: HTMLImageElement[] = [];
+    vi.spyOn(window, "Image").mockImplementation(function () {
+      const image = document.createElement("img");
+      image.decode = vi.fn().mockResolvedValue(undefined);
+      requests.push(image);
+      return image;
+    });
+    return requests;
+  };
+
+  const progressiveItems = [1, 2].map((index) => ({
+    id: `image-${index}`,
+    kind: "image" as const,
+    sourceUrl: `/original-${index}.jpg`,
+    posterUrl: `/thumbnail-${index}.jpg`,
+    filename: `image-${index}.jpg`,
+  }));
+
+  it("shows the thumbnail immediately and replaces it with only the selected decoded original", async () => {
+    const requests = mockOriginalRequests();
+    render(<PreviewImageDialog open onOpenChange={vi.fn()} items={progressiveItems} />);
+
+    const image = screen.getByAltText("Preview image 1 of 2");
+    expect(image).toHaveAttribute("src", "/thumbnail-1.jpg");
+    expect(requests).toHaveLength(1);
+    expect(requests[0]).toHaveAttribute("src", "/original-1.jpg");
+
+    await act(async () => fireEvent.load(requests[0]));
+    expect(requests[0].decode).toHaveBeenCalledOnce();
+    expect(image).toHaveAttribute("src", "/original-1.jpg");
+  });
+
+  it("ignores an earlier original finishing decoding after navigating to another image", async () => {
+    const requests = mockOriginalRequests();
+    render(<PreviewImageDialog open onOpenChange={vi.fn()} items={progressiveItems} />);
+    let finishDecode!: () => void;
+    requests[0].decode = () =>
+      new Promise<void>((resolve) => {
+        finishDecode = resolve;
+      });
+    fireEvent.load(requests[0]);
+    fireEvent.click(screen.getByRole("button", { name: "Next item" }));
+
+    const image = screen.getByAltText("Preview image 2 of 2");
+    expect(image).toHaveAttribute("src", "/thumbnail-2.jpg");
+    expect(requests).toHaveLength(2);
+    await act(async () => finishDecode());
+    expect(image).toHaveAttribute("src", "/thumbnail-2.jpg");
+    await act(async () => fireEvent.load(requests[1]));
+    expect(image).toHaveAttribute("src", "/original-2.jpg");
+  });
+
+  it("keeps a usable thumbnail if the original fails, and falls back to the original if the thumbnail fails", () => {
+    const requests = mockOriginalRequests();
+    render(<PreviewImageDialog open onOpenChange={vi.fn()} items={progressiveItems} />);
+    const image = screen.getByAltText("Preview image 1 of 2");
+    fireEvent.error(requests[0]);
+    expect(image).toHaveAttribute("src", "/thumbnail-1.jpg");
+    fireEvent.error(image);
+    expect(image).toHaveAttribute("src", "/original-1.jpg");
+  });
+
   it("provides a dialog description without accessibility warnings", async () => {
     const warnSpy = vi.spyOn(console, "warn").mockImplementation(() => {});
 
