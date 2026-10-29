@@ -37,7 +37,7 @@ func (p Photo) MarshalJSON() ([]byte, error) {
 	}{attachment, memo})
 }
 
-// Page uses MemoService's cursor. A page contains photos from up to 20 memos.
+// Page uses MemoService's cursor. A page contains photos from up to 20 image-bearing memos.
 type Page struct {
 	Photos        []Photo `json:"photos"`
 	NextPageToken string  `json:"nextPageToken"`
@@ -78,7 +78,7 @@ func (s *Service) List(ctx context.Context, query Query) (*Page, error) {
 	} else if query.State != "" && query.State != "NORMAL" {
 		return nil, status.Error(codes.InvalidArgument, "invalid gallery state")
 	}
-	memos, err := s.API.ListMemos(ctx, &v1pb.ListMemosRequest{
+	memos, err := s.API.ListMemosWithImages(ctx, &v1pb.ListMemosRequest{
 		PageSize: 20, PageToken: query.PageToken, State: state, Filter: strings.Join(filters, " && "),
 	})
 	if err != nil {
@@ -86,9 +86,13 @@ func (s *Service) List(ctx context.Context, query Query) (*Page, error) {
 	}
 	page := &Page{Photos: []Photo{}, NextPageToken: memos.NextPageToken}
 	for _, memo := range memos.Memos {
+		summary := &v1pb.Memo{
+			Name: memo.Name, Creator: memo.Creator, State: memo.State, Visibility: memo.Visibility,
+			CreateTime: memo.CreateTime, UpdateTime: memo.UpdateTime, Tags: memo.Tags, Snippet: memo.Snippet,
+		}
 		for _, attachment := range memo.Attachments {
 			if isGalleryPhoto(attachment) {
-				page.Photos = append(page.Photos, Photo{Attachment: attachment, Memo: memo})
+				page.Photos = append(page.Photos, Photo{Attachment: attachment, Memo: summary})
 			}
 		}
 	}

@@ -239,7 +239,7 @@ func TestGalleryArchivedCommentsAndOrphans(t *testing.T) {
 	require.Contains(t, rec.Body.String(), "archived-photo")
 }
 
-func TestGalleryEmptyMemoPageAndPublicSitemap(t *testing.T) {
+func TestGallerySkipsTextMemosAndPublicSitemap(t *testing.T) {
 	f := newGalleryFixture(t)
 	f.photo(t, "old-photo", store.Public)
 	f.photo(t, "hidden-photo", store.Private)
@@ -257,12 +257,14 @@ func TestGalleryEmptyMemoPageAndPublicSitemap(t *testing.T) {
 		Next   string            `json:"nextPageToken"`
 	}
 	require.NoError(t, json.Unmarshal(rec.Body.Bytes(), &page))
-	require.Empty(t, page.Photos)
-	require.NotEmpty(t, page.Next)
-	rec = f.request(t, "/gallery", nil)
-	require.Contains(t, rec.Body.String(), "Next page")
-	rec = f.request(t, "/api/v1/gallery/photos?pageToken="+url.QueryEscape(page.Next), nil)
+	require.Len(t, page.Photos, 1)
+	require.Empty(t, page.Next)
 	require.Contains(t, rec.Body.String(), "attachments/old-photo")
+	require.NotContains(t, string(page.Photos[0]), `"attachments":`)
+	require.NotContains(t, string(page.Photos[0]), `"content":`)
+	rec = f.request(t, "/gallery", nil)
+	require.NotContains(t, rec.Body.String(), "Next page")
+	require.Contains(t, rec.Body.String(), "/gallery/photos/old-photo")
 	request := httptest.NewRequest(http.MethodGet, "/sitemap.xml", nil)
 	recorder := httptest.NewRecorder()
 	f.echo.ServeHTTP(recorder, request)

@@ -112,6 +112,9 @@ func (d *DB) ListMemos(ctx context.Context, find *store.FindMemo) ([]*store.Memo
 	if find.ExcludeComments {
 		having = append(having, "`parent_uid` IS NULL")
 	}
+	if find.HasImageAttachments {
+		where = append(where, "memo.id IN (SELECT memo_id FROM attachment WHERE memo_id IS NOT NULL AND type LIKE 'image/%' AND storage_type <> 'EXTERNAL')")
+	}
 
 	order := "DESC"
 	if find.OrderByTimeAsc {

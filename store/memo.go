@@ -66,10 +66,11 @@ type FindMemo struct {
 	CreatorID *int32
 
 	// Domain specific fields
-	VisibilityList  []Visibility
-	ExcludeContent  bool
-	ExcludeComments bool
-	Filters         []string
+	VisibilityList      []Visibility
+	ExcludeContent      bool
+	ExcludeComments     bool
+	HasImageAttachments bool
+	Filters             []string
 
 	// Pagination
 	Limit  *int

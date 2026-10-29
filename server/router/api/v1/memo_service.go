@@ -199,9 +199,19 @@ func (s *APIV1Service) CreateMemo(ctx context.Context, request *v1pb.CreateMemoR
 }
 
 func (s *APIV1Service) ListMemos(ctx context.Context, request *v1pb.ListMemosRequest) (*v1pb.ListMemosResponse, error) {
+	return s.listMemos(ctx, request, false)
+}
+
+// ListMemosWithImages applies gallery filtering before pagination, using the same memo read policy.
+func (s *APIV1Service) ListMemosWithImages(ctx context.Context, request *v1pb.ListMemosRequest) (*v1pb.ListMemosResponse, error) {
+	return s.listMemos(ctx, request, true)
+}
+
+func (s *APIV1Service) listMemos(ctx context.Context, request *v1pb.ListMemosRequest, imagesOnly bool) (*v1pb.ListMemosResponse, error) {
 	memoFind := &store.FindMemo{
 		// Exclude comments by default.
-		ExcludeComments: true,
+		ExcludeComments:     true,
+		HasImageAttachments: imagesOnly,
 	}
 	currentUser, err := s.fetchCurrentUser(ctx)
 	if err != nil {
@@ -298,13 +308,15 @@ func (s *APIV1Service) ListMemos(ctx context.Context, request *v1pb.ListMemosReq
 		memoIDs = append(memoIDs, m.ID)
 	}
 
-	// REACTIONS
-	reactions, err := s.Store.ListReactions(ctx, &store.FindReaction{ContentIDList: contentIDs})
-	if err != nil {
-		return nil, status.Errorf(codes.Internal, "failed to list reactions")
-	}
-	for _, reaction := range reactions {
-		reactionMap[reaction.ContentID] = append(reactionMap[reaction.ContentID], reaction)
+	var reactions []*store.Reaction
+	if !imagesOnly {
+		reactions, err = s.Store.ListReactions(ctx, &store.FindReaction{ContentIDList: contentIDs})
+		if err != nil {
+			return nil, status.Errorf(codes.Internal, "failed to list reactions")
+		}
+		for _, reaction := range reactions {
+			reactionMap[reaction.ContentID] = append(reactionMap[reaction.ContentID], reaction)
+		}
 	}
 
 	// ATTACHMENTS
@@ -316,10 +328,12 @@ func (s *APIV1Service) ListMemos(ctx context.Context, request *v1pb.ListMemosReq
 		attachmentMap[*attachment.MemoID] = append(attachmentMap[*attachment.MemoID], attachment)
 	}
 
-	// RELATIONS (batch load to avoid N+1)
-	relationMap, err := s.batchConvertMemoRelations(ctx, memos, false)
-	if err != nil {
-		return nil, status.Errorf(codes.Internal, "failed to batch load memo relations")
+	var relationMap map[int32][]*v1pb.MemoRelation
+	if !imagesOnly {
+		relationMap, err = s.batchConvertMemoRelations(ctx, memos, false)
+		if err != nil {
+			return nil, status.Errorf(codes.Internal, "failed to batch load memo relations")
+		}
 	}
 	creatorIDs := make([]int32, 0, len(memos)+len(reactions))
 	for _, memo := range memos {
