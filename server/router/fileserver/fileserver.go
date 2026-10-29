@@ -3,6 +3,7 @@ package fileserver
 import (
 	"bytes"
 	"context"
+	"crypto/sha256"
 	"encoding/base64"
 	"fmt"
 	"io"
@@ -19,6 +20,7 @@ import (
 	"github.com/labstack/echo/v5"
 	"github.com/pkg/errors"
 	"golang.org/x/sync/semaphore"
+	"golang.org/x/sync/singleflight"
 
 	"github.com/usememos/memos/internal/motionphoto"
 	"github.com/usememos/memos/internal/profile"
@@ -88,6 +90,7 @@ var avatarAllowedTypes = map[string]bool{
 }
 
 var errUseOriginalForThumbnail = errors.New("serve original image instead of metadata-stripping thumbnail")
+var errThumbnailGenerationCanceled = errors.New("thumbnail generation request was canceled")
 
 // dataURIRegex parses data URI format: data:image/png;base64,iVBORw0KGgo...
 var dataURIRegex = regexp.MustCompile(`^data:(?P<type>[^;]+);base64,(?P<base64>.+)`)
@@ -100,6 +103,7 @@ type FileServerService struct {
 
 	// thumbnailSemaphore limits concurrent thumbnail generation.
 	thumbnailSemaphore *semaphore.Weighted
+	thumbnailGroup     singleflight.Group
 }
 
 // NewFileServerService creates a new file server service.
@@ -134,7 +138,7 @@ func (s *FileServerService) serveAttachmentFile(c *echo.Context) error {
 
 	attachment, err := s.Store.GetAttachment(ctx, &store.FindAttachment{
 		UID:     &uid,
-		GetBlob: true,
+		GetBlob: !wantThumbnail,
 	})
 	if err != nil {
 		return echo.NewHTTPError(http.StatusInternalServerError, "failed to get attachment").Wrap(err)
@@ -228,8 +232,12 @@ func (s *FileServerService) serveMediaStream(c *echo.Context, attachment *store.
 
 	default:
 		// Database storage fallback.
+		blob, err := s.getAttachmentBlob(c.Request().Context(), attachment)
+		if err != nil {
+			return echo.NewHTTPError(http.StatusInternalServerError, "failed to read attachment").Wrap(err)
+		}
 		modTime := time.Unix(attachment.UpdatedTs, 0)
-		http.ServeContent(c.Response(), c.Request(), attachment.Filename, modTime, bytes.NewReader(attachment.Blob))
+		http.ServeContent(c.Response(), c.Request(), attachment.Filename, modTime, bytes.NewReader(blob))
 		return nil
 	}
 }
@@ -245,7 +253,9 @@ func (s *FileServerService) serveStaticFile(c *echo.Context, attachment *store.A
 		} else {
 			setSecurityHeaders(c)
 			setMediaHeaders(c, "image/jpeg", attachment.Type)
-			return c.Blob(http.StatusOK, "image/jpeg", thumbnailBlob)
+			c.Response().Header().Set("ETag", fmt.Sprintf(`"%x"`, sha256.Sum256(thumbnailBlob)))
+			http.ServeContent(c.Response(), c.Request(), attachment.Filename, time.Time{}, bytes.NewReader(thumbnailBlob))
+			return nil
 		}
 	}
 
@@ -264,7 +274,11 @@ func (s *FileServerService) serveStaticFile(c *echo.Context, attachment *store.A
 	case storepb.AttachmentStorageType_S3:
 		return s.streamS3Object(c, attachment, contentType)
 	default:
-		return c.Blob(http.StatusOK, contentType, attachment.Blob)
+		blob, err := s.getAttachmentBlob(c.Request().Context(), attachment)
+		if err != nil {
+			return echo.NewHTTPError(http.StatusInternalServerError, "failed to read attachment").Wrap(err)
+		}
+		return c.Blob(http.StatusOK, contentType, blob)
 	}
 }
 
@@ -274,6 +288,9 @@ func (s *FileServerService) serveStaticFile(c *echo.Context, attachment *store.A
 
 // getAttachmentBlob retrieves the binary content of an attachment from storage.
 func (s *FileServerService) getAttachmentBlob(ctx context.Context, attachment *store.Attachment) ([]byte, error) {
+	if attachment.StorageType != storepb.AttachmentStorageType_LOCAL && attachment.StorageType != storepb.AttachmentStorageType_S3 && attachment.Blob != nil {
+		return attachment.Blob, nil
+	}
 	reader, err := s.getAttachmentReader(ctx, attachment)
 	if err != nil {
 		return nil, err
@@ -312,7 +329,18 @@ func (s *FileServerService) getAttachmentReader(ctx context.Context, attachment 
 		return object.Body, nil
 
 	default:
-		return io.NopCloser(bytes.NewReader(attachment.Blob)), nil
+		blob := attachment.Blob
+		if blob == nil {
+			stored, err := s.Store.GetAttachment(ctx, &store.FindAttachment{ID: &attachment.ID, GetBlob: true})
+			if err != nil {
+				return nil, errors.Wrap(err, "failed to load attachment content")
+			}
+			if stored == nil {
+				return nil, errors.New("attachment not found")
+			}
+			blob = stored.Blob
+		}
+		return io.NopCloser(bytes.NewReader(blob)), nil
 	}
 }
 
@@ -396,26 +424,40 @@ func (s *FileServerService) getOrGenerateThumbnail(ctx context.Context, attachme
 		return blob, nil
 	}
 
-	useOriginal, err := s.shouldUseOriginalForThumbnail(ctx, attachment)
-	if err != nil {
-		return nil, err
-	}
-	if useOriginal {
+	if attachment.Type == "image/heic" || attachment.Type == "image/heif" {
 		return nil, errUseOriginalForThumbnail
 	}
 
-	// Acquire semaphore to limit concurrent generation.
-	if err := s.thumbnailSemaphore.Acquire(ctx, 1); err != nil {
-		return nil, errors.Wrap(err, "failed to acquire semaphore")
-	}
-	defer s.thumbnailSemaphore.Release(1)
+	// Share generation work; retry if its owning request was canceled.
+	for {
+		result := s.thumbnailGroup.DoChan(thumbnailPath, func() (any, error) {
+			if err := s.thumbnailSemaphore.Acquire(ctx, 1); err != nil {
+				return nil, errors.Wrap(errThumbnailGenerationCanceled, err.Error())
+			}
+			defer s.thumbnailSemaphore.Release(1)
 
-	// Double-check after acquiring semaphore (another goroutine may have generated it).
-	if blob, err := os.ReadFile(thumbnailPath); err == nil {
-		return blob, nil
+			if blob, err := os.ReadFile(thumbnailPath); err == nil {
+				return blob, nil
+			}
+			blob, err := s.generateThumbnail(ctx, attachment, thumbnailPath)
+			if err != nil && ctx.Err() != nil {
+				return nil, errThumbnailGenerationCanceled
+			}
+			return blob, err
+		})
+		select {
+		case <-ctx.Done():
+			return nil, ctx.Err()
+		case generated := <-result:
+			if ctx.Err() == nil && errors.Is(generated.Err, errThumbnailGenerationCanceled) {
+				continue
+			}
+			if generated.Err != nil {
+				return nil, generated.Err
+			}
+			return generated.Val.([]byte), nil
+		}
 	}
-
-	return s.generateThumbnail(ctx, attachment, thumbnailPath)
 }
 
 // getThumbnailPath returns the file path for a cached thumbnail.
@@ -426,29 +468,6 @@ func (s *FileServerService) getThumbnailPath(attachment *store.Attachment) (stri
 	}
 	filename := fmt.Sprintf("%s.v2.jpeg", attachment.UID)
 	return filepath.Join(cacheFolder, filename), nil
-}
-
-func (s *FileServerService) shouldUseOriginalForThumbnail(ctx context.Context, attachment *store.Attachment) (bool, error) {
-	if attachment.Type == "image/heic" || attachment.Type == "image/heif" {
-		return true, nil
-	}
-
-	if attachment.Type != "image/jpeg" && attachment.Type != "image/jpg" && attachment.Type != "image/png" && attachment.Type != "image/webp" {
-		return false, nil
-	}
-
-	reader, err := s.getAttachmentReader(ctx, attachment)
-	if err != nil {
-		return false, errors.Wrap(err, "failed to open image for metadata probe")
-	}
-	defer reader.Close()
-
-	probe, err := io.ReadAll(io.LimitReader(reader, thumbnailMetadataProbeSize))
-	if err != nil {
-		return false, errors.Wrap(err, "failed to read image metadata probe")
-	}
-
-	return hasThumbnailSensitiveMetadata(probe), nil
 }
 
 func hasThumbnailSensitiveMetadata(data []byte) bool {
@@ -498,7 +517,15 @@ func (s *FileServerService) generateThumbnail(ctx context.Context, attachment *s
 	}
 	defer reader.Close()
 
-	img, err := imaging.Decode(reader, imaging.AutoOrientation(true))
+	// Inspect and decode the same stream, avoiding a second S3 download or disk read.
+	probe, err := io.ReadAll(io.LimitReader(reader, thumbnailMetadataProbeSize))
+	if err != nil {
+		return nil, errors.Wrap(err, "failed to read image metadata probe")
+	}
+	if hasThumbnailSensitiveMetadata(probe) {
+		return nil, errUseOriginalForThumbnail
+	}
+	img, err := imaging.Decode(io.MultiReader(bytes.NewReader(probe), reader), imaging.AutoOrientation(true))
 	if err != nil {
 		return nil, errors.Wrap(err, "failed to decode image")
 	}
@@ -512,7 +539,20 @@ func (s *FileServerService) generateThumbnail(ctx context.Context, attachment *s
 	if err := imaging.Encode(&buf, thumbnailImage, imaging.JPEG, imaging.JPEGQuality(90)); err != nil {
 		return nil, errors.Wrap(err, "failed to encode thumbnail")
 	}
-	if err := os.WriteFile(thumbnailPath, buf.Bytes(), 0644); err != nil {
+	// Publish atomically so cache hits never observe a partially written JPEG.
+	file, err := os.CreateTemp(filepath.Dir(thumbnailPath), ".thumbnail-*.jpeg")
+	if err != nil {
+		return nil, errors.Wrap(err, "failed to create thumbnail cache file")
+	}
+	defer os.Remove(file.Name())
+	if _, err := file.Write(buf.Bytes()); err != nil {
+		file.Close()
+		return nil, errors.Wrap(err, "failed to write thumbnail")
+	}
+	if err := file.Close(); err != nil {
+		return nil, errors.Wrap(err, "failed to close thumbnail")
+	}
+	if err := os.Rename(file.Name(), thumbnailPath); err != nil {
 		return nil, errors.Wrap(err, "failed to save thumbnail")
 	}
 
