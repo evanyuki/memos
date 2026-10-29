@@ -31,19 +31,27 @@ const images = Array.from({ length: 11 }, (_, index) =>
 const markdown = images.map((image) => `![${image.filename}](/file/${image.name})`).join("\n\n");
 
 describe("memo image galleries", () => {
-  it("shows nine ordered square tiles and keeps overflow images available in the preview", () => {
+  it.each([2, 4, 9, 11])("shows up to nine ordered tiles for %i images and keeps all images in the preview", (count) => {
+    const attachments = images.slice(0, count);
+    const visibleCount = Math.min(count, 9);
     const onImagePreview = vi.fn();
-    const { container } = render(<AttachmentListView attachments={images} onImagePreview={onImagePreview} />);
+    const { container } = render(<AttachmentListView attachments={attachments} onImagePreview={onImagePreview} />);
     const tiles = screen.getAllByRole("button");
-    expect(tiles).toHaveLength(9);
-    expect(tiles.map((tile) => tile.getAttribute("aria-label"))).toEqual(images.slice(0, 9).map((image) => image.filename));
-    expect(container.querySelector(".grid-cols-3")).toBeInTheDocument();
+    expect(tiles).toHaveLength(visibleCount);
+    expect(tiles.map((tile) => tile.getAttribute("aria-label"))).toEqual(attachments.slice(0, 9).map((image) => image.filename));
+    expect(container.querySelector(count === 2 || count === 4 ? ".grid-cols-2" : ".grid-cols-3")).toBeInTheDocument();
+    expect(screen.queryByText(/Attachments/)).not.toBeInTheDocument();
+    expect(container.querySelector(".border")).not.toBeInTheDocument();
     tiles.forEach((tile) => expect(tile).toHaveClass("aspect-square"));
-    expect(screen.getByText("+2")).toBeInTheDocument();
-    fireEvent.keyDown(tiles[8], { key: "Enter" });
+    screen.getAllByRole("img").forEach((image) => {
+      expect(image).toHaveAttribute("loading", "lazy");
+      expect(image.getAttribute("src")).toContain("thumbnail=true");
+    });
+    if (count > 9) expect(screen.getByText(`+${count - 9}`)).toBeInTheDocument();
+    fireEvent.keyDown(tiles[visibleCount - 1], { key: "Enter" });
     expect(onImagePreview).toHaveBeenCalledWith(
-      images.map((image) => expect.objectContaining({ id: image.name, attachments: [image] })),
-      8,
+      attachments.map((image) => expect.objectContaining({ id: image.name, attachments: [image] })),
+      visibleCount - 1,
     );
   });
 

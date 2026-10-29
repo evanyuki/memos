@@ -1,7 +1,6 @@
-import { DownloadIcon, FileIcon, PaperclipIcon, PlayIcon } from "lucide-react";
+import { DownloadIcon, FileIcon, PlayIcon } from "lucide-react";
 import type { PropsWithChildren } from "react";
 import { useMemo } from "react";
-import MetadataSection from "@/components/MemoMetadata/MetadataSection";
 import MotionPhotoPreview from "@/components/MotionPhotoPreview";
 import VideoPoster from "@/components/VideoPoster";
 import { cn } from "@/lib/utils";
@@ -10,7 +9,7 @@ import { getAttachmentUrl } from "@/utils/attachment";
 import type { AttachmentVisualItem, PreviewMediaItem } from "@/utils/media-item";
 import { buildAttachmentVisualItems } from "@/utils/media-item";
 import AudioAttachmentItem from "./AudioAttachmentItem";
-import { getAttachmentMetadata, isAudioAttachment, separateAttachments } from "./attachmentHelpers";
+import { getAttachmentMetadata, separateAttachments } from "./attachmentHelpers";
 import {
   COLLAGE_VIDEO_PLAY_BADGE_CLASS,
   COVER_MEDIA_CLASS,
@@ -257,8 +256,6 @@ const DocsList = ({ attachments }: { attachments: Attachment[] }) => (
   </div>
 );
 
-const Divider = () => <div className="border-t border-border/70 opacity-80" />;
-
 const AttachmentListView = ({ attachments, onImagePreview }: AttachmentListViewProps) => {
   const { visual, audio, docs } = useMemo(() => separateAttachments(attachments), [attachments]);
   const visualItems = useMemo(() => buildAttachmentVisualItems(visual), [visual]);
@@ -266,7 +263,6 @@ const AttachmentListView = ({ attachments, onImagePreview }: AttachmentListViewP
   const hasVisual = visualItems.length > 0;
   const hasAudio = audio.length > 0;
   const hasDocs = docs.length > 0;
-  const hasMedia = hasVisual || hasAudio;
 
   if (attachments.length === 0) {
     return null;
@@ -278,21 +274,11 @@ const AttachmentListView = ({ attachments, onImagePreview }: AttachmentListViewP
   };
 
   return (
-    <MetadataSection
-      icon={PaperclipIcon}
-      title="Attachments"
-      count={visualItems.length + audio.length + docs.length}
-      contentClassName="flex flex-col gap-2 p-2"
-    >
-      {hasMedia && (
-        <div className="flex flex-col gap-2">
-          {hasVisual && <VisualGallery items={visualItems} onPreview={onImagePreview ? handlePreview : undefined} />}
-          {hasAudio && <AudioList attachments={audio.filter(isAudioAttachment)} compact />}
-        </div>
-      )}
-      {hasMedia && hasDocs && <Divider />}
+    <div className="flex w-full flex-col gap-2">
+      {hasVisual && <VisualGallery items={visualItems} onPreview={onImagePreview ? handlePreview : undefined} />}
+      {hasAudio && <AudioList attachments={audio} compact />}
       {hasDocs && <DocsList attachments={docs} />}
-    </MetadataSection>
+    </div>
   );
 };
 

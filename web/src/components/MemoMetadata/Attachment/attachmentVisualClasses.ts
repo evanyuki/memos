@@ -4,7 +4,7 @@
  */
 
 export const VISUAL_TILE_BUTTON_CLASS =
-  "relative block overflow-hidden rounded-xl border border-border/70 bg-muted/30 p-0 text-left outline-none transition-colors focus-visible:ring-2 focus-visible:ring-ring/50";
+  "relative block overflow-hidden rounded-lg bg-muted/30 p-0 text-left outline-none focus-visible:ring-2 focus-visible:ring-ring/50";
 
 export const MEDIA_HOVER_SURFACE_CLASS = "group/media relative h-full min-h-0 w-full overflow-hidden";
 

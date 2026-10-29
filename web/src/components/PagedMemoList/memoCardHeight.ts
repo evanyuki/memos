@@ -26,8 +26,6 @@ const SINGLE_IMAGE_HEIGHT = 260;
 const SINGLE_VIDEO_ASPECT_RATIO = 9 / 16;
 const VISUAL_GALLERY_MAX_WIDTH = 576;
 const VISUAL_GALLERY_GAP = 8;
-const ATTACHMENT_SECTION_HEADER_HEIGHT = 36;
-const ATTACHMENT_SECTION_PADDING = 16;
 const ATTACHMENT_SECTION_GAP = 8;
 const AUDIO_ATTACHMENT_ROW_HEIGHT = 92;
 const DOCUMENT_ATTACHMENT_ROW_HEIGHT = 64;
@@ -67,7 +65,7 @@ const estimateVisualGalleryHeight = (visualAttachments: Attachment[], columnWidt
   }
   const columns = count === 2 || count === 4 ? 2 : 3;
   const rows = Math.ceil(Math.min(count, COLLAGE_MAX_VISIBLE_CELLS) / columns);
-  const width = Math.max(1, Math.min(VISUAL_GALLERY_MAX_WIDTH, columnWidth - CONTENT_HORIZONTAL_PADDING - ATTACHMENT_SECTION_PADDING));
+  const width = Math.max(1, Math.min(VISUAL_GALLERY_MAX_WIDTH, columnWidth - CONTENT_HORIZONTAL_PADDING));
   const cellSize = Math.max(1, (width - (columns - 1) * VISUAL_GALLERY_GAP) / columns);
   return Math.round(cellSize * rows + (rows - 1) * VISUAL_GALLERY_GAP);
 };
@@ -84,9 +82,7 @@ const estimateAttachmentSectionHeight = (attachments: Attachment[], columnWidth:
     docs.length > 0 ? docs.length * DOCUMENT_ATTACHMENT_ROW_HEIGHT + Math.max(0, docs.length - 1) * ATTACHMENT_SECTION_GAP : 0,
   ].filter((height) => height > 0);
 
-  const contentHeight =
-    contentParts.reduce((total, height) => total + height, 0) + Math.max(0, contentParts.length - 1) * ATTACHMENT_SECTION_GAP;
-  return ATTACHMENT_SECTION_HEADER_HEIGHT + ATTACHMENT_SECTION_PADDING + contentHeight;
+  return contentParts.reduce((total, height) => total + height, 0) + Math.max(0, contentParts.length - 1) * ATTACHMENT_SECTION_GAP;
 };
 
 const countCommentRelations = (memo: Memo): number =>
