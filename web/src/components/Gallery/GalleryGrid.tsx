@@ -17,7 +17,7 @@ import GalleryPageHeader from "./GalleryPageHeader";
 const photoUid = (photo: GalleryPhoto) => photo.attachment.name.split("/").pop()!;
 const GalleryNavigationContext = createContext<string[]>([]);
 
-function GalleryCard({ data: photo, width }: RenderComponentProps<GalleryPhoto>) {
+function GalleryCard({ data: photo, width, index }: RenderComponentProps<GalleryPhoto>) {
   const t = useTranslate();
   const { userTagsSetting } = useAuth();
   const photoUids = useContext(GalleryNavigationContext);
@@ -39,7 +39,10 @@ function GalleryCard({ data: photo, width }: RenderComponentProps<GalleryPhoto>)
         <img
           src={getAttachmentThumbnailUrl(photo.attachment)}
           alt={blurred ? "" : photo.attachment.filename}
-          loading="lazy"
+          loading={index < 4 ? "eager" : "lazy"}
+          fetchPriority={index === 0 ? "high" : "auto"}
+          width={metadata?.width || undefined}
+          height={metadata?.height || undefined}
           decoding="async"
           className={cn("block size-full object-cover", blurred && "blur-xl")}
         />
