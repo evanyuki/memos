@@ -3,7 +3,7 @@
   "crons": [
     {
       "path": "/api/v1/memos",
-      "schedule": "0 3 * * 1"
+      "schedule": "0 3 * * *"
     }
   ]
 }
