@@ -1,8 +1,7 @@
 -- system_setting
 CREATE TABLE `system_setting` (
   `name` VARCHAR(256) NOT NULL PRIMARY KEY,
-  `value` LONGTEXT NOT NULL,
-  `description` TEXT NOT NULL
+  `value` LONGTEXT NOT NULL
 );
 
 -- user

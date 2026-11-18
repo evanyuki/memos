@@ -38,6 +38,7 @@ func TestMigrationRejectsDowngrade(t *testing.T) {
 
 	ctx := context.Background()
 	ts := NewTestingStore(ctx, t)
+	defer ts.Close()
 
 	currentVersion, err := ts.GetCurrentSchemaVersion()
 	require.NoError(t, err)
@@ -61,6 +62,7 @@ func TestMigrationRejectsPreV022Installation(t *testing.T) {
 
 	ctx := context.Background()
 	ts := NewTestingStore(ctx, t)
+	defer ts.Close()
 
 	// 0.21.x predates moving schema tracking from migration_history to system_setting.
 	setSchemaVersion(ctx, t, ts, "0.21.0")
@@ -86,6 +88,7 @@ func TestMigrationAcceptsMinimumSupportedVersion(t *testing.T) {
 
 	ctx := context.Background()
 	ts := NewTestingStore(ctx, t)
+	defer ts.Close()
 
 	setSchemaVersion(ctx, t, ts, "0.22.0")
 

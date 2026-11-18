@@ -13,9 +13,8 @@ import (
 )
 
 type InstanceSetting struct {
-	Name        string
-	Value       string
-	Description string
+	Name  string
+	Value string
 }
 
 type FindInstanceSetting struct {
@@ -55,9 +54,8 @@ func (s *Store) UpsertInstanceSetting(ctx context.Context, upsert *storepb.Insta
 	}
 	valueString := string(valueBytes)
 	instanceSettingRaw.Value = valueString
-	instanceSettingRaw, err = s.driver.UpsertInstanceSetting(ctx, instanceSettingRaw)
-	if err != nil {
-		return nil, errors.Wrap(err, "Failed to upsert instance setting")
+	if err := s.driver.UpsertInstanceSetting(ctx, s.driver.GetDB(), instanceSettingRaw); err != nil {
+		return nil, errors.Wrap(err, "failed to upsert instance setting")
 	}
 	instanceSetting, err := convertInstanceSettingFromRaw(instanceSettingRaw)
 	if err != nil {

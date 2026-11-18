@@ -31,9 +31,7 @@ func (d *DB) ApplyAuthenticationConfigMutation(ctx context.Context, mutation *st
 
 	state := &store.AuthenticationConfigState{}
 	general := &store.InstanceSetting{}
-	err = tx.QueryRowContext(ctx, `SELECT name, value, description FROM system_setting WHERE name = $1 FOR UPDATE`, "GENERAL").Scan(
-		&general.Name, &general.Value, &general.Description,
-	)
+	err = tx.QueryRowContext(ctx, `SELECT name, value FROM system_setting WHERE name = $1 FOR UPDATE`, "GENERAL").Scan(&general.Name, &general.Value)
 	if err == nil {
 		state.GeneralSetting = general
 	} else if !errors.Is(err, sql.ErrNoRows) {
@@ -65,7 +63,7 @@ func (d *DB) ApplyAuthenticationConfigMutation(ctx context.Context, mutation *st
 		}
 	}
 	if setting := mutation.UpsertGeneralSetting; setting != nil {
-		_, err = tx.ExecContext(ctx, `INSERT INTO system_setting (name, value, description) VALUES ($1, $2, $3) ON CONFLICT(name) DO UPDATE SET value = EXCLUDED.value, description = EXCLUDED.description`, setting.Name, setting.Value, setting.Description)
+		err = d.UpsertInstanceSetting(ctx, tx, setting)
 	} else if id := mutation.DeleteIdentityProviderID; id != nil {
 		_, err = tx.ExecContext(ctx, `DELETE FROM idp WHERE id = $1`, *id)
 	} else {

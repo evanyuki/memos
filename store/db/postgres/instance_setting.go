@@ -7,22 +7,11 @@ import (
 	"github.com/usememos/memos/store"
 )
 
-func (d *DB) UpsertInstanceSetting(ctx context.Context, upsert *store.InstanceSetting) (*store.InstanceSetting, error) {
-	stmt := `
-		INSERT INTO system_setting (
-			name, value, description
-		)
-		VALUES ($1, $2, $3)
-		ON CONFLICT(name) DO UPDATE
-		SET
-			value = EXCLUDED.value,
-			description = EXCLUDED.description
-	`
-	if _, err := d.db.ExecContext(ctx, stmt, upsert.Name, upsert.Value, upsert.Description); err != nil {
-		return nil, err
-	}
+const upsertInstanceSettingSQL = `INSERT INTO system_setting (name, value) VALUES ($1, $2) ON CONFLICT(name) DO UPDATE SET value = EXCLUDED.value`
 
-	return upsert, nil
+func (*DB) UpsertInstanceSetting(ctx context.Context, exec store.SQLExecutor, upsert *store.InstanceSetting) error {
+	_, err := exec.ExecContext(ctx, upsertInstanceSettingSQL, upsert.Name, upsert.Value)
+	return err
 }
 
 func (d *DB) ListInstanceSettings(ctx context.Context, find *store.FindInstanceSetting) ([]*store.InstanceSetting, error) {
@@ -32,10 +21,7 @@ func (d *DB) ListInstanceSettings(ctx context.Context, find *store.FindInstanceS
 	}
 
 	query := `
-		SELECT
-			name,
-			value,
-			description
+		SELECT name, value
 		FROM system_setting
 		WHERE ` + strings.Join(where, " AND ")
 
@@ -48,11 +34,7 @@ func (d *DB) ListInstanceSettings(ctx context.Context, find *store.FindInstanceS
 	list := []*store.InstanceSetting{}
 	for rows.Next() {
 		systemSettingMessage := &store.InstanceSetting{}
-		if err := rows.Scan(
-			&systemSettingMessage.Name,
-			&systemSettingMessage.Value,
-			&systemSettingMessage.Description,
-		); err != nil {
+		if err := rows.Scan(&systemSettingMessage.Name, &systemSettingMessage.Value); err != nil {
 			return nil, err
 		}
 		list = append(list, systemSettingMessage)

@@ -7,22 +7,11 @@ import (
 	"github.com/usememos/memos/store"
 )
 
-func (d *DB) UpsertInstanceSetting(ctx context.Context, upsert *store.InstanceSetting) (*store.InstanceSetting, error) {
-	stmt := "INSERT INTO `system_setting` (`name`, `value`, `description`) VALUES (?, ?, ?) ON DUPLICATE KEY UPDATE `value` = ?, `description` = ?"
-	_, err := d.db.ExecContext(
-		ctx,
-		stmt,
-		upsert.Name,
-		upsert.Value,
-		upsert.Description,
-		upsert.Value,
-		upsert.Description,
-	)
-	if err != nil {
-		return nil, err
-	}
+const upsertInstanceSettingSQL = "INSERT INTO `system_setting` (`name`, `value`) VALUES (?, ?) ON DUPLICATE KEY UPDATE `value` = ?"
 
-	return upsert, nil
+func (*DB) UpsertInstanceSetting(ctx context.Context, exec store.SQLExecutor, upsert *store.InstanceSetting) error {
+	_, err := exec.ExecContext(ctx, upsertInstanceSettingSQL, upsert.Name, upsert.Value, upsert.Value)
+	return err
 }
 
 func (d *DB) ListInstanceSettings(ctx context.Context, find *store.FindInstanceSetting) ([]*store.InstanceSetting, error) {
@@ -31,7 +20,7 @@ func (d *DB) ListInstanceSettings(ctx context.Context, find *store.FindInstanceS
 		where, args = append(where, "`name` = ?"), append(args, find.Name)
 	}
 
-	query := "SELECT `name`, `value`, `description` FROM `system_setting` WHERE " + strings.Join(where, " AND ")
+	query := "SELECT `name`, `value` FROM `system_setting` WHERE " + strings.Join(where, " AND ")
 	rows, err := d.db.QueryContext(ctx, query, args...)
 	if err != nil {
 		return nil, err
@@ -41,11 +30,7 @@ func (d *DB) ListInstanceSettings(ctx context.Context, find *store.FindInstanceS
 	list := []*store.InstanceSetting{}
 	for rows.Next() {
 		systemSettingMessage := &store.InstanceSetting{}
-		if err := rows.Scan(
-			&systemSettingMessage.Name,
-			&systemSettingMessage.Value,
-			&systemSettingMessage.Description,
-		); err != nil {
+		if err := rows.Scan(&systemSettingMessage.Name, &systemSettingMessage.Value); err != nil {
 			return nil, err
 		}
 		list = append(list, systemSettingMessage)

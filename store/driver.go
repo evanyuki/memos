@@ -5,6 +5,11 @@ import (
 	"database/sql"
 )
 
+// SQLExecutor executes statements against a database or transaction.
+type SQLExecutor interface {
+	ExecContext(ctx context.Context, query string, args ...any) (sql.Result, error)
+}
+
 // Driver is an interface for store driver.
 // It contains all methods that store database driver should implement.
 type Driver interface {
@@ -38,7 +43,7 @@ type Driver interface {
 	DeleteMemoRelation(ctx context.Context, delete *DeleteMemoRelation) error
 
 	// InstanceSetting model related methods.
-	UpsertInstanceSetting(ctx context.Context, upsert *InstanceSetting) (*InstanceSetting, error)
+	UpsertInstanceSetting(ctx context.Context, exec SQLExecutor, upsert *InstanceSetting) error
 	ListInstanceSettings(ctx context.Context, find *FindInstanceSetting) ([]*InstanceSetting, error)
 	DeleteInstanceSetting(ctx context.Context, delete *DeleteInstanceSetting) error
 

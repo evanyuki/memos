@@ -25,6 +25,7 @@ func TestFreshInstall(t *testing.T) {
 	// NewTestingStore creates a fresh database and runs Migrate()
 	// which applies LATEST.sql for uninitialized databases
 	ts := NewTestingStore(ctx, t)
+	defer ts.Close()
 
 	// Verify migration completed successfully
 	currentSchemaVersion, err := ts.GetCurrentSchemaVersion()
@@ -46,6 +47,7 @@ func TestMigrationReRun(t *testing.T) {
 	ctx := context.Background()
 	// Use the shared testing store which already runs migrations on init
 	ts := NewTestingStore(ctx, t)
+	defer ts.Close()
 
 	// Get current version
 	initialVersion, err := ts.GetCurrentSchemaVersion()
@@ -68,6 +70,7 @@ func TestMigrationWithData(t *testing.T) {
 
 	ctx := context.Background()
 	ts := NewTestingStore(ctx, t)
+	defer ts.Close()
 
 	// Create a user and memo before re-running migration
 	user, err := createTestingHostUser(ctx, ts)
@@ -98,6 +101,7 @@ func TestMigrationMultipleReRuns(t *testing.T) {
 
 	ctx := context.Background()
 	ts := NewTestingStore(ctx, t)
+	defer ts.Close()
 
 	// Get initial version
 	initialVersion, err := ts.GetCurrentSchemaVersion()

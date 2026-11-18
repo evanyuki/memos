@@ -1,4 +1,4 @@
-CREATE TABLE `daily_checklist` (
+CREATE TABLE IF NOT EXISTS `daily_checklist` (
   `id` INT NOT NULL AUTO_INCREMENT PRIMARY KEY,
   `creator_id` INT NOT NULL,
   `checklist_date` VARCHAR(10) NOT NULL,
