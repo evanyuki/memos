@@ -7,7 +7,7 @@ import { colorToHex } from "@/lib/color";
 import { tagStyles } from "@/lib/markdownStyles";
 import { findTagMetadata } from "@/lib/tag";
 import { cn } from "@/lib/utils";
-import { Routes } from "@/router";
+import { ROUTES } from "@/router/routes";
 import { useMemoViewContext } from "../MemoView/MemoViewContext";
 
 interface TagProps extends React.HTMLAttributes<HTMLSpanElement> {
@@ -44,7 +44,7 @@ export const Tag: React.FC<TagProps> = ({ "data-tag": dataTag, children, classNa
 
     // If the tag is clicked in a memo detail page, we should navigate to the memo list page.
     if (location.pathname.startsWith("/m")) {
-      const pathname = parentPage || Routes.HOME;
+      const pathname = parentPage || ROUTES.HOME;
       const searchParams = new URLSearchParams();
 
       searchParams.set("filter", stringifyFilters([{ factor: "tagSearch", value: tag }]));

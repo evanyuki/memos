@@ -17,10 +17,18 @@ const AdminSignIn = lazyWithReload(() => import("@/pages/AdminSignIn"));
 const About = lazyWithReload(() => import("@/pages/About"));
 const Archived = lazyWithReload(() => import("@/pages/Archived"));
 const AuthCallback = lazyWithReload(() => import("@/pages/AuthCallback"));
-const Explore = lazyWithReload(() => import("@/pages/Explore"));
+const loadExplore = () => import("@/pages/Explore");
+const Explore = lazyWithReload(loadExplore);
 const Gallery = lazyWithReload(() => import("@/pages/Gallery"));
-const GalleryPhoto = lazyWithReload(() => import("@/pages/GalleryPhoto"));
+export const loadGalleryPhoto = () => import("@/pages/GalleryPhoto");
+const GalleryPhoto = lazyWithReload(loadGalleryPhoto);
 const Home = lazyWithReload(() => import("@/pages/Home"));
+
+// Fetch only route code during bootstrap. Data queries still wait for the verified identity.
+export function warmEntryRoute(pathname: string) {
+  if (pathname === "/" || pathname === "/explore") void loadExplore().catch(() => {});
+  else if (pathname.startsWith("/gallery/photos/")) void loadGalleryPhoto().catch(() => {});
+}
 const Inboxes = lazyWithReload(() => import("@/pages/Inboxes"));
 const MemoDetail = lazyWithReload(() => import("@/pages/MemoDetail"));
 const NotFound = lazyWithReload(() => import("@/pages/NotFound"));
@@ -33,8 +41,6 @@ const SignUp = lazyWithReload(() => import("@/pages/SignUp"));
 const UserProfile = lazyWithReload(() => import("@/pages/UserProfile"));
 const DailyChecklist = lazyWithReload(() => import("@/pages/DailyChecklist"));
 
-// Backward compatibility alias.
-export const Routes = ROUTES;
 export { ROUTES };
 
 /**
@@ -49,7 +55,7 @@ export const routeConfig: RouteObject[] = [
     errorElement: <ChunkLoadErrorFallback />,
     children: [
       {
-        path: Routes.AUTH,
+        path: ROUTES.AUTH,
         children: [
           // The OAuth callback must run regardless of the current session — an
           // authenticated tab elsewhere must not block it from consuming its
@@ -71,7 +77,7 @@ export const routeConfig: RouteObject[] = [
         ],
       },
       // Backward compatibility: the old `/home` URL now lives at `/`.
-      { path: "home", element: <Navigate to={Routes.HOME} replace /> },
+      { path: "home", element: <Navigate to={ROUTES.HOME} replace /> },
       {
         element: <RootLayout />,
         children: [
@@ -84,25 +90,25 @@ export const routeConfig: RouteObject[] = [
               },
               {
                 element: <RequireInstanceInitializationRoute />,
-                children: [{ path: Routes.ABOUT, element: <About /> }],
+                children: [{ path: ROUTES.ABOUT, element: <About /> }],
               },
-              { path: Routes.EXPLORE, element: <Explore /> },
+              { path: ROUTES.EXPLORE, element: <Explore /> },
               { path: "u/:username", element: <UserProfile /> },
               { path: "u/:username/daily-checklists/:date", element: <DailyChecklist /> },
               {
                 element: <RequireAuthRoute />,
                 children: [
-                  { path: Routes.ARCHIVED, element: <Archived /> },
-                  { path: Routes.DAILY_CHECKLIST, element: <DailyChecklist /> },
+                  { path: ROUTES.ARCHIVED, element: <Archived /> },
+                  { path: ROUTES.DAILY_CHECKLIST, element: <DailyChecklist /> },
                   {
                     element: <RequireFullInitializationRoute />,
-                    children: [{ path: Routes.VIEWS, element: <MemoViews /> }],
+                    children: [{ path: ROUTES.VIEWS, element: <MemoViews /> }],
                   },
                 ],
               },
             ],
           },
-          { path: Routes.GALLERY, element: <Gallery /> },
+          { path: ROUTES.GALLERY, element: <Gallery /> },
           { path: "memos/:uid", element: <MemoDetail /> },
           { path: "gallery/photos/:uid", element: <GalleryPhoto /> },
           { path: "memos/shares/:token", element: <MemoDetail /> },
@@ -112,9 +118,9 @@ export const routeConfig: RouteObject[] = [
               {
                 element: <RequireFullInitializationRoute />,
                 children: [
-                  { path: Routes.ATTACHMENTS, element: <Attachments /> },
-                  { path: Routes.INBOX, element: <Inboxes /> },
-                  { path: Routes.SETTING, element: <Setting /> },
+                  { path: ROUTES.ATTACHMENTS, element: <Attachments /> },
+                  { path: ROUTES.INBOX, element: <Inboxes /> },
+                  { path: ROUTES.SETTING, element: <Setting /> },
                 ],
               },
             ],

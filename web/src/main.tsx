@@ -18,12 +18,13 @@ import { ViewProvider } from "@/contexts/ViewContext";
 import { useLiveMemoRefresh } from "@/hooks/useLiveMemoRefresh";
 import { useTokenRefreshOnFocus } from "@/hooks/useTokenRefreshOnFocus";
 import { queryClient } from "@/lib/query-client";
-import router from "./router";
+import router, { warmEntryRoute } from "./router";
 import { applyLocaleEarly } from "./utils/i18n";
 import { applyThemeEarly } from "./utils/theme";
 
 // Apply theme and locale early to prevent flash
 applyThemeEarly();
+warmEntryRoute(window.location.pathname);
 applyLocaleEarly();
 
 // Inner component that initializes contexts
@@ -77,7 +78,12 @@ function AppInitializer({ children }: { children: React.ReactNode }) {
   // instance profile. Display-sensitive settings continue in the background;
   // PagedMemoList keeps memo content hidden until privacy settings have settled.
   if (!isIdentityInitialized || !isProfileInitialized) {
-    return null;
+    return (
+      <div role="status" aria-busy="true" className="mx-auto min-h-svh max-w-3xl space-y-6 px-6 py-10">
+        <div className="h-6 w-32 animate-pulse rounded bg-muted" />
+        <div className="h-24 animate-pulse rounded bg-muted" />
+      </div>
+    );
   }
 
   return <>{children}</>;

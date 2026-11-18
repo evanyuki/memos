@@ -233,32 +233,12 @@ export const applyThemeEarly = (): void => {
 // System Theme Listener
 // ============================================================================
 
-/**
- * Sets up a listener for OS-level theme preference changes.
- * Supports both modern (addEventListener) and legacy (addListener) APIs.
- *
- * @param onThemeChange - Callback invoked when system theme changes
- * @returns Cleanup function to remove the listener
- */
 export const setupSystemThemeListener = (onThemeChange: () => void): (() => void) => {
-  // Guard against SSR
   if (typeof window === "undefined" || !window.matchMedia) {
     return () => {};
   }
 
   const mediaQuery = window.matchMedia("(prefers-color-scheme: dark)");
-
-  // Modern API (preferred)
-  if (mediaQuery.addEventListener) {
-    mediaQuery.addEventListener("change", onThemeChange);
-    return () => mediaQuery.removeEventListener("change", onThemeChange);
-  }
-
-  // Legacy API (Safari < 14)
-  if (mediaQuery.addListener) {
-    mediaQuery.addListener(onThemeChange);
-    return () => mediaQuery.removeListener(onThemeChange);
-  }
-
-  return () => {};
+  mediaQuery.addEventListener("change", onThemeChange);
+  return () => mediaQuery.removeEventListener("change", onThemeChange);
 };

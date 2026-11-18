@@ -4,14 +4,6 @@ export function absolutifyLink(rel: string): string {
   return anchor.href;
 }
 
-export function getSystemColorScheme() {
-  if (window.matchMedia && window.matchMedia("(prefers-color-scheme: dark)").matches) {
-    return "dark";
-  } else {
-    return "light";
-  }
-}
-
 export function convertFileToBase64(file: File): Promise<string> {
   return new Promise<string>((resolve, reject) => {
     const reader = new FileReader();

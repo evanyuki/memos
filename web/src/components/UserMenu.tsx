@@ -16,7 +16,7 @@ import { useSSEConnectionStatus } from "@/hooks/useLiveMemoRefresh";
 import useNavigateTo from "@/hooks/useNavigateTo";
 import { useUpdateUserGeneralSetting } from "@/hooks/useUserQueries";
 import { cn } from "@/lib/utils";
-import { Routes } from "@/router";
+import { ROUTES } from "@/router/routes";
 import { getLocaleWithFallback, loadLocale, useTranslate } from "@/utils/i18n";
 import { getThemeWithFallback, loadTheme, THEME_OPTIONS } from "@/utils/theme";
 import { LocaleSearchList } from "./LocalePicker";
@@ -101,7 +101,7 @@ const UserMenu = (props: Props) => {
     }
 
     // Always redirect to auth page (use replace to prevent back navigation)
-    window.location.replace(Routes.AUTH);
+    window.location.replace(ROUTES.AUTH);
   };
 
   const navigateFromMenu = (path: string) => {
@@ -178,11 +178,11 @@ const UserMenu = (props: Props) => {
             ))}
           </DropdownMenuSubContent>
         </DropdownMenuSub>
-        <DropdownMenuItem onClick={() => navigateFromMenu(Routes.ABOUT)}>
+        <DropdownMenuItem onClick={() => navigateFromMenu(ROUTES.ABOUT)}>
           <InfoIcon className="size-4 text-muted-foreground" />
           {t("common.about")}
         </DropdownMenuItem>
-        <DropdownMenuItem onClick={() => navigateFromMenu(Routes.SETTING)}>
+        <DropdownMenuItem onClick={() => navigateFromMenu(ROUTES.SETTING)}>
           <SettingsIcon className="size-4 text-muted-foreground" />
           {t("common.settings")}
         </DropdownMenuItem>
