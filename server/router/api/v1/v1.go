@@ -9,7 +9,6 @@ import (
 	"github.com/grpc-ecosystem/grpc-gateway/v2/runtime"
 	"github.com/labstack/echo/v5"
 	"github.com/pkg/errors"
-	"golang.org/x/sync/semaphore"
 
 	"github.com/usememos/memos/internal/httpgetter"
 	"github.com/usememos/memos/internal/markdown"
@@ -42,10 +41,7 @@ type APIV1Service struct {
 	MarkdownService         markdown.Service
 	SSEHub                  *SSEHub
 	NotificationEmailSender notification.EmailSender
-
-	// thumbnailSemaphore limits concurrent thumbnail generation to prevent memory exhaustion
-	thumbnailSemaphore       *semaphore.Weighted
-	imageProcessingSemaphore *semaphore.Weighted
+	WakePhotoWorker         func()
 
 	// instanceStatsCache memoizes GetInstanceStats results for instanceStatsCacheTTL.
 	instanceStatsCache instanceStatsCache
@@ -60,14 +56,12 @@ func NewAPIV1Service(secret string, profile *profile.Profile, store *store.Store
 		markdown.WithMentionExtension(),
 	)
 	service := &APIV1Service{
-		Secret:                   secret,
-		Profile:                  profile,
-		Store:                    store,
-		MarkdownService:          markdownService,
-		SSEHub:                   NewSSEHub(),
-		NotificationEmailSender:  nil,
-		thumbnailSemaphore:       semaphore.NewWeighted(3), // Limit to 3 concurrent thumbnail generations
-		imageProcessingSemaphore: semaphore.NewWeighted(2),
+		Secret:                  secret,
+		Profile:                 profile,
+		Store:                   store,
+		MarkdownService:         markdownService,
+		SSEHub:                  NewSSEHub(),
+		NotificationEmailSender: nil,
 	}
 	service.linkMetadataFetcher = httpgetter.NewHTMLMetaFetcher()
 	return service

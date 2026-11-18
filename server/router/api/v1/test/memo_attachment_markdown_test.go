@@ -163,7 +163,7 @@ func TestMemoManagedAttachmentImages(t *testing.T) {
 		userCtx := ts.CreateUserContext(ctx, user.ID)
 		memo, err := ts.Service.CreateMemo(userCtx, &v1pb.CreateMemoRequest{Memo: &v1pb.Memo{Content: "many attachments"}})
 		require.NoError(t, err)
-		memoID := memoIDFromName(ctx, t, ts, memo.Name)
+		memoID := parseMemoIDFromNameForTest(t, ts, memo.Name)
 
 		referenced, err := ts.Store.CreateAttachment(ctx, &store.Attachment{
 			UID: shortuuid.New(), CreatorID: user.ID, Filename: "referenced.png", Type: "image/png", MemoID: &memoID,
@@ -347,7 +347,7 @@ func TestMemoAttachmentBindingDoesNotReparent(t *testing.T) {
 	require.NoError(t, err)
 	require.NotNil(t, stored)
 	require.NotNil(t, stored.MemoID)
-	require.Equal(t, memoIDFromName(ctx, t, ts, first.Name), *stored.MemoID)
+	require.Equal(t, parseMemoIDFromNameForTest(t, ts, first.Name), *stored.MemoID)
 }
 
 func TestCreateMemoDoesNotBindAnotherUsersAttachmentOrCreatePartialMemo(t *testing.T) {

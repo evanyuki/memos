@@ -3,6 +3,7 @@ package sqlite
 import (
 	"context"
 	"database/sql"
+	"encoding/json"
 	"fmt"
 	"strings"
 
@@ -42,6 +43,10 @@ func (d *DB) CreateAttachment(ctx context.Context, create *store.Attachment) (*s
 func (d *DB) ListAttachments(ctx context.Context, find *store.FindAttachment) ([]*store.Attachment, error) {
 	where, args := []string{"1 = 1"}, []any{}
 
+	if v := find.PendingPhotosAt; v != nil {
+		where = append(where, "attachment.type LIKE 'image/%' AND COALESCE(json_extract(attachment.payload, '$.photoPreviewVersion'), 0) < 1 AND CAST(COALESCE(json_extract(attachment.payload, '$.photoRetryAfter'), 0) AS INTEGER) <= ?")
+		args = append(args, *v)
+	}
 	if v := find.ID; v != nil {
 		where, args = append(where, "`attachment`.`id` = ?"), append(args, *v)
 	}
@@ -169,9 +174,6 @@ func (d *DB) ListAttachments(ctx context.Context, find *store.FindAttachment) ([
 func (d *DB) UpdateAttachment(ctx context.Context, update *store.UpdateAttachment) error {
 	set, args := []string{}, []any{}
 
-	if v := update.UID; v != nil {
-		set, args = append(set, "`uid` = ?"), append(args, *v)
-	}
 	if v := update.UpdatedTs; v != nil {
 		set, args = append(set, "`updated_ts` = ?"), append(args, *v)
 	}
@@ -180,6 +182,14 @@ func (d *DB) UpdateAttachment(ctx context.Context, update *store.UpdateAttachmen
 	}
 	if v := update.MemoID; v != nil {
 		set, args = append(set, "`memo_id` = ?"), append(args, *v)
+	}
+	if len(update.PayloadPatch) != 0 {
+		patch, err := json.Marshal(update.PayloadPatch)
+		if err != nil {
+			return err
+		}
+		set = append(set, "payload = json_patch(payload, ?)")
+		args = append(args, string(patch))
 	}
 	if v := update.Payload; v != nil {
 		bytes, err := protojson.Marshal(v)

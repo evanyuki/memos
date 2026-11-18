@@ -24,13 +24,20 @@ import (
 
 func convertAttachmentFromStore(attachment *store.Attachment) *v1pb.Attachment {
 	attachmentMessage := &v1pb.Attachment{
-		Name:          fmt.Sprintf("%s%s", AttachmentNamePrefix, attachment.UID),
-		CreateTime:    timestamppb.New(time.Unix(attachment.CreatedTs, 0)),
-		Filename:      attachment.Filename,
-		Type:          attachment.Type,
-		Size:          attachment.Size,
-		MotionMedia:   convertMotionMediaFromStore(getAttachmentMotionMedia(attachment)),
-		MediaMetadata: convertMediaMetadataFromStore(attachment.Payload.GetMediaMetadata()),
+		Name:           fmt.Sprintf("%s%s", AttachmentNamePrefix, attachment.UID),
+		CreateTime:     timestamppb.New(time.Unix(attachment.CreatedTs, 0)),
+		Filename:       attachment.Filename,
+		Type:           attachment.Type,
+		Size:           attachment.Size,
+		MotionMedia:    convertMotionMediaFromStore(getAttachmentMotionMedia(attachment)),
+		MediaMetadata:  convertMediaMetadataFromStore(attachment.Payload.GetMediaMetadata()),
+		AllowOriginal:  attachment.Payload.GetAllowOriginal(),
+		LocationStatus: attachment.Payload.GetLocationStatus(),
+	}
+	// The file download is the explicit opt-in boundary. Gallery, memo, share
+	// and SSR responses never publish the camera's coordinates.
+	if photo := attachmentMessage.MediaMetadata.GetPhoto(); photo != nil {
+		photo.Location = nil
 	}
 	if attachment.MemoUID != nil && *attachment.MemoUID != "" {
 		memoName := fmt.Sprintf("%s%s", MemoNamePrefix, *attachment.MemoUID)
@@ -59,42 +66,35 @@ func SaveAttachmentBlob(ctx context.Context, profile *profile.Profile, stores *s
 	}
 
 	if defaultStorage.Type == storepb.StorageType_STORAGE_TYPE_LOCAL {
-		filepathTemplate := "assets/{timestamp}_{uuid}_{filename}"
-		if instanceStorageSetting.FilepathTemplate != "" {
-			filepathTemplate = instanceStorageSetting.FilepathTemplate
+		template := instanceStorageSetting.FilepathTemplate
+		if template == "" {
+			template = "assets/{timestamp}_{uuid}_{filename}"
 		}
-
-		internalPath := filepathTemplate
-		if !strings.Contains(internalPath, "{filename}") {
-			internalPath = filepath.Join(internalPath, "{filename}")
+		target := filepath.FromSlash(attachmentObjectPath(template, create))
+		if !filepath.IsAbs(target) {
+			target = filepath.Join(profile.Data, target)
 		}
-		internalPath = replaceFilenameWithPathTemplate(internalPath, create.Filename)
-		internalPath = filepath.ToSlash(internalPath)
-
-		// Ensure the directory exists.
-		osPath := filepath.FromSlash(internalPath)
-		if !filepath.IsAbs(osPath) {
-			osPath = filepath.Join(profile.Data, osPath)
+		if err := os.MkdirAll(filepath.Dir(target), 0755); err != nil {
+			return errors.Wrap(err, "create attachment directory")
 		}
-		osPath = ensureUniqueLocalAttachmentPath(osPath, create.UID)
-		internalPath = filepath.ToSlash(osPath)
-		if !filepath.IsAbs(filepath.FromSlash(internalPath)) {
-			internalPath, err = filepath.Rel(profile.Data, osPath)
-			if err != nil {
-				return errors.Wrap(err, "Failed to get relative path")
+		file, err := os.OpenFile(target, os.O_WRONLY|os.O_CREATE|os.O_EXCL, 0600)
+		if os.IsExist(err) {
+			ext := filepath.Ext(target)
+			file, err = os.CreateTemp(filepath.Dir(target), strings.TrimSuffix(filepath.Base(target), ext)+"_*"+ext)
+		}
+		if err != nil {
+			return errors.Wrap(err, "create attachment file")
+		}
+		_, writeErr := file.Write(create.Blob)
+		closeErr := file.Close()
+		if writeErr != nil || closeErr != nil {
+			_ = os.Remove(file.Name())
+			if writeErr != nil {
+				return writeErr
 			}
-			internalPath = filepath.ToSlash(internalPath)
+			return closeErr
 		}
-		dir := filepath.Dir(osPath)
-		if err = os.MkdirAll(dir, os.ModePerm); err != nil {
-			return errors.Wrap(err, "Failed to create directory")
-		}
-
-		// Write the blob to the file.
-		if err := os.WriteFile(osPath, create.Blob, 0644); err != nil {
-			return errors.Wrap(err, "Failed to write file")
-		}
-		create.Reference = internalPath
+		create.Reference = filepath.ToSlash(file.Name())
 		create.Blob = nil
 		create.StorageType = storepb.AttachmentStorageType_LOCAL
 	} else if defaultStorage.Type == storepb.StorageType_STORAGE_TYPE_S3 {
@@ -103,11 +103,7 @@ func SaveAttachmentBlob(ctx context.Context, profile *profile.Profile, stores *s
 			return errors.Wrap(err, "failed to create storage driver")
 		}
 
-		filepathTemplate := instanceStorageSetting.FilepathTemplate
-		if !strings.Contains(filepathTemplate, "{filename}") {
-			filepathTemplate = filepath.Join(filepathTemplate, "{filename}")
-		}
-		filepathTemplate = replaceFilenameWithPathTemplate(filepathTemplate, create.Filename)
+		filepathTemplate := attachmentObjectPath(instanceStorageSetting.FilepathTemplate, create)
 		key, err := driver.UploadObject(ctx, filepathTemplate, create.Type, bytes.NewReader(create.Blob))
 		if err != nil {
 			return errors.Wrap(err, "failed to upload via storage driver")
@@ -116,14 +112,15 @@ func SaveAttachmentBlob(ctx context.Context, profile *profile.Profile, stores *s
 		// S3 attachments carry no reference; they are served via the authenticated file route.
 		create.Blob = nil
 		create.StorageType = storepb.AttachmentStorageType_S3
-		payload := ensureAttachmentPayload(create.Payload)
-		payload.Payload = &storepb.AttachmentPayload_S3Object_{
+		if create.Payload == nil {
+			create.Payload = &storepb.AttachmentPayload{}
+		}
+		create.Payload.Payload = &storepb.AttachmentPayload_S3Object_{
 			S3Object: &storepb.AttachmentPayload_S3Object{
 				Key:       key,
 				StorageId: defaultStorage.Id,
 			},
 		}
-		create.Payload = payload
 	}
 
 	return nil
@@ -200,14 +197,14 @@ func replaceFilenameWithPathTemplate(path, filename string) string {
 	return path
 }
 
-func ensureUniqueLocalAttachmentPath(path, uid string) string {
-	if _, err := os.Stat(path); err != nil {
-		return path
+func attachmentObjectPath(template string, a *store.Attachment) string {
+	if !strings.Contains(template, "{filename}") {
+		template = filepath.ToSlash(filepath.Join(template, "{filename}"))
 	}
-
-	ext := filepath.Ext(path)
-	base := strings.TrimSuffix(path, ext)
-	return base + "_" + uid + ext
+	if a.IsCameraMedia() && !strings.Contains(template, "{uuid}") {
+		template = strings.Replace(template, "{filename}", "{uuid}_{filename}", 1)
+	}
+	return replaceFilenameWithPathTemplate(template, a.Filename)
 }
 
 func validateFilename(filename string) bool {

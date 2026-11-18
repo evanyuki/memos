@@ -2513,6 +2513,13 @@ components:
                     allOf:
                         - $ref: '#/components/schemas/MediaMetadata'
                     description: Optional. Immutable normalized media metadata captured at creation time.
+                allowOriginal:
+                    type: boolean
+                    description: Allow readers of the memo to explicitly download the untouched camera file.
+                locationStatus:
+                    readOnly: true
+                    type: string
+                    description: 'Location inspection result: present, not_found or unknown. Empty until inspected.'
         BatchDeleteAttachmentsRequest:
             required:
                 - names

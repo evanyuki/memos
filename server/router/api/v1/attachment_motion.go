@@ -41,20 +41,6 @@ func getAttachmentMotionMedia(attachment *store.Attachment) *storepb.MotionMedia
 	return attachment.Payload.MotionMedia
 }
 
-func isAndroidMotionContainer(motion *storepb.MotionMedia) bool {
-	return motion != nil &&
-		motion.Family == storepb.MotionMediaFamily_ANDROID_MOTION_PHOTO &&
-		motion.Role == storepb.MotionMediaRole_CONTAINER &&
-		motion.HasEmbeddedVideo
-}
-
-func ensureAttachmentPayload(payload *storepb.AttachmentPayload) *storepb.AttachmentPayload {
-	if payload != nil {
-		return payload
-	}
-	return &storepb.AttachmentPayload{}
-}
-
 func isMultiMemberMotionGroup(attachments []*store.Attachment) bool {
 	if len(attachments) < 2 {
 		return false

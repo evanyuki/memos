@@ -236,11 +236,6 @@ func photoView(photo *gallery.Photo, shareToken string) galleryPhotoView {
 		if metadata.BitsPerSample != nil {
 			view.Metadata = append(view.Metadata, galleryMetadata{"Bit depth", strconv.Itoa(int(*metadata.BitsPerSample))})
 		}
-		if location := metadata.Location; location != nil && location.Latitude != nil && location.Longitude != nil {
-			view.Metadata = append(view.Metadata, galleryMetadata{
-				"Coordinates", strconv.FormatFloat(*location.Latitude, 'f', -1, 64) + ", " + strconv.FormatFloat(*location.Longitude, 'f', -1, 64),
-			})
-		}
 	}
 	return view
 }

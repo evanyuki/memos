@@ -36,9 +36,7 @@ Avatars are public on instances that allow anonymous access; private instances r
 - **XSS prevention**: script-capable MIME types are rewritten to `application/octet-stream`, non-media files get `Content-Disposition: attachment`, and all responses carry `X-Content-Type-Options: nosniff` plus a restrictive `Content-Security-Policy`.
 - **Caching**: public attachments get `public, no-cache`; private ones `private, no-store`; avatars get `public, max-age=3600`. Thumbnails follow attachment permissions and support ETag revalidation.
 
-## Testing
-
-Unit tests live in [fileserver_test.go](fileserver_test.go), covering permission checks, streaming, thumbnails, and metadata detection. Manual checks:
+## Manual checks
 
 ```bash
 curl "http://localhost:8081/file/attachments/{uid}/file.jpg"

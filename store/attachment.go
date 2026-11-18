@@ -2,13 +2,16 @@ package store
 
 import (
 	"context"
+	"fmt"
 	"log/slog"
 	"os"
 	"path/filepath"
+	"strings"
 
 	"github.com/pkg/errors"
 
 	"github.com/usememos/memos/internal/base"
+	"github.com/usememos/memos/internal/photomedia"
 	"github.com/usememos/memos/internal/storage"
 	storepb "github.com/usememos/memos/proto/gen/store"
 )
@@ -41,6 +44,7 @@ type Attachment struct {
 }
 
 type FindAttachment struct {
+	PendingPhotosAt  *int64
 	GetBlob          bool
 	ID               *int32
 	UID              *string
@@ -56,13 +60,24 @@ type FindAttachment struct {
 	SkipDefaultLimit bool
 }
 
+// IsCameraMedia includes still images and the video member of a Live Photo.
+func (a *Attachment) IsCameraMedia() bool {
+	return strings.HasPrefix(a.Type, "image/") || a.Payload.GetMotionMedia().GetRole() == storepb.MotionMediaRole_VIDEO
+}
+
+// PhotoKey identifies the derivative and its immutable source, including legacy files without a digest.
+func (a *Attachment) PhotoKey(variant photomedia.Variant) string {
+	return photomedia.Key(fmt.Sprintf("%s-%d-%s", a.UID, a.ID, a.Payload.GetOriginalSha256()), variant)
+}
+
 type UpdateAttachment struct {
-	ID        int32
-	UID       *string
-	UpdatedTs *int64
-	Filename  *string
-	MemoID    *int32
-	Payload   *storepb.AttachmentPayload
+	// PayloadPatch merges only supplied keys so publication and background processing can run concurrently.
+	PayloadPatch map[string]any
+	ID           int32
+	UpdatedTs    *int64
+	Filename     *string
+	MemoID       *int32
+	Payload      *storepb.AttachmentPayload
 }
 
 type DeleteAttachment struct {
@@ -122,9 +137,6 @@ func (s *Store) GetAttachment(ctx context.Context, find *FindAttachment) (*Attac
 }
 
 func (s *Store) UpdateAttachment(ctx context.Context, update *UpdateAttachment) error {
-	if update.UID != nil && !base.UIDMatcher.MatchString(*update.UID) {
-		return errors.New("invalid uid")
-	}
 	return s.driver.UpdateAttachment(ctx, update)
 }
 
@@ -250,6 +262,13 @@ func (s *Store) deleteAttachmentStorageImpl(ctx context.Context, attachment *Att
 			if err != nil {
 				return errors.Wrap(err, "failed to create storage driver")
 			}
+			if attachment.IsCameraMedia() {
+				for _, variant := range []photomedia.Variant{photomedia.Display, photomedia.Thumbnail, photomedia.Motion} {
+					if err := driver.DeleteObject(ctx, attachment.PhotoKey(variant)); err != nil {
+						return errors.Wrap(err, "delete photo derivative")
+					}
+				}
+			}
 			if err := driver.DeleteObject(ctx, s3ObjectPayload.Key); err != nil {
 				return errors.Wrap(err, "Failed to delete s3 object")
 			}
@@ -320,7 +339,11 @@ func AttachmentNeedsInstanceStorageSetting(attachment *Attachment) bool {
 func (s *Store) deleteAttachmentDerivedCaches(attachment *Attachment) {
 	for _, cachePath := range []string{
 		filepath.Join(s.profile.Data, thumbnailCacheFolder, attachment.UID+".jpeg"),
+		filepath.Join(s.profile.Data, thumbnailCacheFolder, attachment.UID+".v2.jpeg"),
 		filepath.Join(s.profile.Data, motionCacheFolder, attachment.UID+".mp4"),
+		filepath.Join(s.profile.Data, attachment.PhotoKey(photomedia.Display)),
+		filepath.Join(s.profile.Data, attachment.PhotoKey(photomedia.Thumbnail)),
+		filepath.Join(s.profile.Data, attachment.PhotoKey(photomedia.Motion)),
 	} {
 		if err := os.Remove(cachePath); err != nil && !os.IsNotExist(err) {
 			slog.Warn("Failed to delete derived attachment cache", slog.String("path", cachePath), slog.Any("err", err))

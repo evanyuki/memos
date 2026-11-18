@@ -91,6 +91,13 @@ message AttachmentPayload {
 
   MotionMedia motion_media = 10;
   MediaMetadata media_metadata = 11;
+  // Set only by the attachment creator. Existing attachments default to closed.
+  bool allow_original = 12;
+  // Digest of the bytes received from the uploader, before any processing.
+  string original_sha256 = 13;
+  string location_status = 14;
+  uint32 photo_preview_version = 15;
+  int64 photo_retry_after = 16;
 
   message S3Object {
     // Legacy attachments embedded their complete S3 configuration.

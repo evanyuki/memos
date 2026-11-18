@@ -57,7 +57,6 @@ func Extract(ctx context.Context, data []byte, mimeType string) (Metadata, error
 			switch tag.Tag {
 			case "Make", "Model", "Orientation", "ImageWidth", "ImageHeight", "ExifImageWidth", "ExifImageHeight",
 				"DateTimeOriginal", "CreateDate", "SubSecTimeOriginal", "SubSecTimeDigitized", "OffsetTimeOriginal", "OffsetTimeDigitized",
-				"GPSLatitude", "GPSLatitudeRef", "GPSLongitude", "GPSLongitudeRef", "GPSAltitude", "GPSAltitudeRef",
 				"LensModel", "FNumber", "ExposureTime", "ISO", "FocalLength", "FocalLengthIn35mmFormat",
 				"ExposureCompensation", "ExposureProgram", "MeteringMode", "WhiteBalance", "ColorSpace", "BitsPerSample", "ICC_Profile":
 				return true

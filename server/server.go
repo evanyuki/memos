@@ -34,6 +34,7 @@ type Server struct {
 	echoServer *echo.Echo
 	httpServer *http.Server
 	sseHub     *apiv1.SSEHub
+	stopPhotos context.CancelFunc
 }
 
 func NewServer(ctx context.Context, profile *profile.Profile, store *store.Store) (*Server, error) {
@@ -77,6 +78,10 @@ func NewServer(ctx context.Context, profile *profile.Profile, store *store.Store
 	// This uses native HTTP serving (http.ServeContent) instead of gRPC for video/audio files.
 	fileServerService := fileserver.NewFileServerService(s.Profile, s.Store, s.Secret)
 	fileServerService.RegisterRoutes(echoServer)
+	fileServerService.RegisterPhotoMaintenance(echoServer, apiV1Service.IndexPhoto, os.Getenv("CRON_SECRET"))
+	photoCtx, stopPhotos := context.WithCancel(ctx)
+	s.stopPhotos = stopPhotos
+	apiV1Service.WakePhotoWorker = fileServerService.StartPhotoWorker(photoCtx, apiV1Service.IndexPhoto)
 
 	// Create and register RSS routes (needs markdown service from apiV1Service).
 	rss.NewRSSService(s.Profile, s.Store, apiV1Service.MarkdownService).RegisterRoutes(rootGroup)
@@ -128,6 +133,9 @@ func (s *Server) Start() error {
 }
 
 func (s *Server) Shutdown(ctx context.Context) {
+	if s.stopPhotos != nil {
+		s.stopPhotos()
+	}
 	ctx, cancel := context.WithTimeout(ctx, shutdownTimeout)
 	defer cancel()
 

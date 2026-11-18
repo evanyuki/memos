@@ -2,7 +2,7 @@ package v1
 
 import (
 	"context"
-	"encoding/binary"
+	"crypto/sha256"
 	"fmt"
 	"log/slog"
 	"mime"
@@ -29,23 +29,8 @@ const (
 	MaxUploadBufferSizeBytes = 32 << 20
 	MebiByte                 = 1024 * 1024
 
-	// defaultJPEGQuality is the JPEG quality used when re-encoding images for EXIF stripping.
-	// Quality 95 maintains visual quality while ensuring metadata is removed.
-	defaultJPEGQuality        = 95
 	maxBatchDeleteAttachments = 100
-	maxImagePixels            = 50_000_000
 )
-
-// exifCapableImageTypes defines image formats that may contain EXIF metadata.
-// These formats will have their EXIF metadata stripped on upload for privacy.
-var exifCapableImageTypes = map[string]bool{
-	"image/jpeg": true,
-	"image/jpg":  true,
-	"image/tiff": true,
-	"image/webp": true,
-	"image/heic": true,
-	"image/heif": true,
-}
 
 func (s *APIV1Service) CreateAttachment(ctx context.Context, request *v1pb.CreateAttachmentRequest) (*v1pb.Attachment, error) {
 	user, err := s.fetchCurrentUser(ctx)
@@ -67,13 +52,17 @@ func (s *APIV1Service) CreateAttachment(ctx context.Context, request *v1pb.Creat
 		return nil, status.Errorf(codes.InvalidArgument, "filename contains invalid characters or format")
 	}
 	normalizedMimeType := request.Attachment.Type
-	if normalizedMimeType == "" {
-		ext := filepath.Ext(request.Attachment.Filename)
+	if normalizedMimeType == "" || normalizedMimeType == "application/octet-stream" {
+		ext := strings.ToLower(filepath.Ext(request.Attachment.Filename))
 		mimeType := mime.TypeByExtension(ext)
+		switch ext {
+		case ".heic", ".heif", ".avif":
+			mimeType = "image/" + ext[1:]
+		}
 		if mimeType == "" {
 			mimeType = http.DetectContentType(request.Attachment.Content)
 		}
-		if normalizedType, ok := normalizeMimeType(mimeType); ok {
+		if normalizedType, ok := normalizeMimeType(mimeType); ok && (normalizedMimeType == "" || strings.HasPrefix(normalizedType, "image/")) {
 			normalizedMimeType = normalizedType
 		}
 	}
@@ -91,35 +80,31 @@ func (s *APIV1Service) CreateAttachment(ctx context.Context, request *v1pb.Creat
 		return nil, err
 	}
 
-	create := &store.Attachment{
-		UID:       attachmentUID,
-		CreatorID: user.ID,
-		Filename:  request.Attachment.Filename,
-		Type:      request.Attachment.Type,
-	}
-
-	inputMotionMedia, err := validateClientMotionMedia(request.Attachment.MotionMedia, attachmentUID)
+	inputMotionMedia, err := validateClientMotionMedia(request.Attachment.MotionMedia)
 	if err != nil {
 		return nil, err
-	}
-	if inputMotionMedia != nil {
-		create.Payload = ensureAttachmentPayload(create.Payload)
-		create.Payload.MotionMedia = inputMotionMedia
 	}
 	inputMediaMetadata, err := validateClientMediaMetadata(request.Attachment.MediaMetadata, request.Attachment.Type)
 	if err != nil {
 		return nil, err
 	}
-	if inputMediaMetadata != nil {
-		create.Payload = ensureAttachmentPayload(create.Payload)
-		create.Payload.MediaMetadata = inputMediaMetadata
+	if photo := inputMediaMetadata.GetPhoto(); photo != nil {
+		photo.Location = nil
+	}
+
+	create := &store.Attachment{
+		UID:       attachmentUID,
+		CreatorID: user.ID,
+		Filename:  request.Attachment.Filename,
+		Type:      request.Attachment.Type,
+		Payload:   &storepb.AttachmentPayload{MotionMedia: inputMotionMedia, MediaMetadata: inputMediaMetadata},
 	}
 
 	instanceStorageSetting, err := s.Store.GetInstanceStorageSetting(ctx)
 	if err != nil {
 		return nil, status.Errorf(codes.Internal, "failed to get instance storage setting: %v", err)
 	}
-	size := binary.Size(request.Attachment.Content)
+	size := len(request.Attachment.Content)
 	uploadSizeLimit := int(instanceStorageSetting.UploadSizeLimitMb) * MebiByte
 	if uploadSizeLimit == 0 {
 		uploadSizeLimit = MaxUploadBufferSizeBytes
@@ -151,53 +136,13 @@ func (s *APIV1Service) CreateAttachment(ctx context.Context, request *v1pb.Creat
 		create.MemoID = &memo.ID
 	}
 
-	if create.Payload == nil || create.Payload.MotionMedia == nil {
-		if detectedMotion := detectAndroidMotionMedia(create.Blob, create.Type, attachmentUID); detectedMotion != nil {
-			create.Payload = ensureAttachmentPayload(create.Payload)
-			create.Payload.MotionMedia = detectedMotion
-		}
+	if create.Payload.MotionMedia == nil {
+		create.Payload.MotionMedia = detectAndroidMotionMedia(create.Blob, create.Type, attachmentUID)
 	}
 
-	// Read the same preference for browser and API uploads. Opting in preserves
-	// original EXIF, ICC, HDR and motion bytes; extraction never re-encodes the file.
-	generalSetting, err := s.Store.GetUserSetting(ctx, &store.FindUserSetting{UserID: &user.ID, Key: storepb.UserSetting_GENERAL})
-	if err != nil {
-		return nil, status.Errorf(codes.Internal, "failed to get upload preferences: %v", err)
-	}
-	preserveOriginal := generalSetting.GetGeneral().GetSaveMediaMetadata()
-	if preserveOriginal && strings.HasPrefix(create.Type, "image/") {
-		release, err := s.acquireImageProcessingSlot(ctx)
-		if err != nil {
-			return nil, status.Errorf(codes.ResourceExhausted, "too many image processing requests")
-		}
-		metadata, extractErr := extractPhotoMetadata(ctx, create.Blob, create.Type, create.Payload.GetMediaMetadata())
-		release()
-		if metadata != nil {
-			create.Payload = ensureAttachmentPayload(create.Payload)
-			create.Payload.MediaMetadata = metadata
-		}
-		if extractErr != nil {
-			// Keep the original and any validated partial metadata when a camera's
-			// metadata is unsupported or malformed; failure must not destroy pixels.
-			slog.Warn("failed to extract some image metadata", "filename", create.Filename, "error", extractErr)
-		}
-	} else if shouldStripExif(create.Type) && !isAndroidMotionContainer(create.Payload.GetMotionMedia()) {
-		release, err := s.acquireImageProcessingSlot(ctx)
-		if err != nil {
-			return nil, status.Errorf(codes.ResourceExhausted, "too many image processing requests")
-		}
-		strippedBlob, stripErr := stripImageExif(create.Blob, create.Type)
-		release()
-		if stripErr != nil {
-			// Log warning but continue with original image to ensure uploads don't fail.
-			slog.Warn("failed to strip EXIF metadata from image",
-				slog.String("type", create.Type),
-				slog.String("filename", create.Filename),
-				slog.String("error", stripErr.Error()))
-		} else {
-			create.Blob = strippedBlob
-			create.Size = int64(len(strippedBlob))
-		}
+	// Store exactly the bytes selected by the uploader. Only derivatives may be rewritten.
+	if create.IsCameraMedia() {
+		create.Payload.OriginalSha256 = fmt.Sprintf("%x", sha256.Sum256(create.Blob))
 	}
 
 	if err := SaveAttachmentBlob(ctx, s.Profile, s.Store, create); err != nil {
@@ -206,9 +151,24 @@ func (s *APIV1Service) CreateAttachment(ctx context.Context, request *v1pb.Creat
 
 	attachment, err := s.Store.CreateAttachment(ctx, create)
 	if err != nil {
+		// Photo object names are unique for this upload. A duplicate UID or failed
+		// database commit must not leave a second, unreachable camera file.
+		if create.IsCameraMedia() && create.StorageType != 0 {
+			cleanupCtx, cancel := context.WithTimeout(context.WithoutCancel(ctx), 10*time.Second)
+			defer cancel()
+			committed, lookupErr := s.Store.GetAttachment(cleanupCtx, &store.FindAttachment{UID: &create.UID})
+			if lookupErr == nil && (committed == nil || committed.Reference != create.Reference || committed.Payload.GetS3Object().GetKey() != create.Payload.GetS3Object().GetKey()) {
+				if cleanupErr := s.Store.DeleteAttachmentStorage(cleanupCtx, create); cleanupErr != nil {
+					slog.Warn("clean up failed photo upload", "error", cleanupErr)
+				}
+			}
+		}
 		return nil, status.Errorf(codes.Internal, "failed to create attachment: %v", err)
 	}
 
+	if s.WakePhotoWorker != nil && strings.HasPrefix(attachment.Type, "image/") {
+		s.WakePhotoWorker()
+	}
 	return convertAttachmentFromStore(attachment), nil
 }
 
@@ -320,7 +280,16 @@ func (s *APIV1Service) UpdateAttachment(ctx context.Context, request *v1pb.Updat
 		UpdatedTs: &currentTs,
 	}
 	for _, field := range request.UpdateMask.Paths {
-		if field == "filename" {
+		switch field {
+		case "allow_original":
+			if user.ID != attachment.CreatorID {
+				return nil, status.Error(codes.PermissionDenied, "only the attachment creator may release the original")
+			}
+			if !strings.HasPrefix(attachment.Type, "image/") {
+				return nil, status.Error(codes.InvalidArgument, "original release requires a photo")
+			}
+			update.PayloadPatch = map[string]any{"allowOriginal": request.Attachment.AllowOriginal}
+		case "filename":
 			if !validateFilename(request.Attachment.Filename) {
 				return nil, status.Errorf(codes.InvalidArgument, "filename contains invalid characters or format")
 			}

@@ -696,8 +696,15 @@ type AttachmentPayload struct {
 	Payload       isAttachmentPayload_Payload `protobuf_oneof:"payload"`
 	MotionMedia   *MotionMedia                `protobuf:"bytes,10,opt,name=motion_media,json=motionMedia,proto3" json:"motion_media,omitempty"`
 	MediaMetadata *MediaMetadata              `protobuf:"bytes,11,opt,name=media_metadata,json=mediaMetadata,proto3" json:"media_metadata,omitempty"`
-	unknownFields protoimpl.UnknownFields
-	sizeCache     protoimpl.SizeCache
+	// Set only by the attachment creator. Existing attachments default to closed.
+	AllowOriginal bool `protobuf:"varint,12,opt,name=allow_original,json=allowOriginal,proto3" json:"allow_original,omitempty"`
+	// Digest of the bytes received from the uploader, before any processing.
+	OriginalSha256      string `protobuf:"bytes,13,opt,name=original_sha256,json=originalSha256,proto3" json:"original_sha256,omitempty"`
+	LocationStatus      string `protobuf:"bytes,14,opt,name=location_status,json=locationStatus,proto3" json:"location_status,omitempty"`
+	PhotoPreviewVersion uint32 `protobuf:"varint,15,opt,name=photo_preview_version,json=photoPreviewVersion,proto3" json:"photo_preview_version,omitempty"`
+	PhotoRetryAfter     int64  `protobuf:"varint,16,opt,name=photo_retry_after,json=photoRetryAfter,proto3" json:"photo_retry_after,omitempty"`
+	unknownFields       protoimpl.UnknownFields
+	sizeCache           protoimpl.SizeCache
 }
 
 func (x *AttachmentPayload) Reset() {
@@ -758,6 +765,41 @@ func (x *AttachmentPayload) GetMediaMetadata() *MediaMetadata {
 		return x.MediaMetadata
 	}
 	return nil
+}
+
+func (x *AttachmentPayload) GetAllowOriginal() bool {
+	if x != nil {
+		return x.AllowOriginal
+	}
+	return false
+}
+
+func (x *AttachmentPayload) GetOriginalSha256() string {
+	if x != nil {
+		return x.OriginalSha256
+	}
+	return ""
+}
+
+func (x *AttachmentPayload) GetLocationStatus() string {
+	if x != nil {
+		return x.LocationStatus
+	}
+	return ""
+}
+
+func (x *AttachmentPayload) GetPhotoPreviewVersion() uint32 {
+	if x != nil {
+		return x.PhotoPreviewVersion
+	}
+	return 0
+}
+
+func (x *AttachmentPayload) GetPhotoRetryAfter() int64 {
+	if x != nil {
+		return x.PhotoRetryAfter
+	}
+	return 0
 }
 
 type isAttachmentPayload_Payload interface {
@@ -900,12 +942,17 @@ const file_store_attachment_proto_rawDesc = "" +
 	"\x10_altitude_meters\"T\n" +
 	"\rVideoMetadata\x12.\n" +
 	"\x10duration_seconds\x18\x01 \x01(\x01H\x00R\x0fdurationSeconds\x88\x01\x01B\x13\n" +
-	"\x11_duration_seconds\"\xfa\x02\n" +
+	"\x11_duration_seconds\"\xd3\x04\n" +
 	"\x11AttachmentPayload\x12F\n" +
 	"\ts3_object\x18\x01 \x01(\v2'.memos.store.AttachmentPayload.S3ObjectH\x00R\bs3Object\x12;\n" +
 	"\fmotion_media\x18\n" +
 	" \x01(\v2\x18.memos.store.MotionMediaR\vmotionMedia\x12A\n" +
-	"\x0emedia_metadata\x18\v \x01(\v2\x1a.memos.store.MediaMetadataR\rmediaMetadata\x1a\x91\x01\n" +
+	"\x0emedia_metadata\x18\v \x01(\v2\x1a.memos.store.MediaMetadataR\rmediaMetadata\x12%\n" +
+	"\x0eallow_original\x18\f \x01(\bR\rallowOriginal\x12'\n" +
+	"\x0foriginal_sha256\x18\r \x01(\tR\x0eoriginalSha256\x12'\n" +
+	"\x0flocation_status\x18\x0e \x01(\tR\x0elocationStatus\x122\n" +
+	"\x15photo_preview_version\x18\x0f \x01(\rR\x13photoPreviewVersion\x12*\n" +
+	"\x11photo_retry_after\x18\x10 \x01(\x03R\x0fphotoRetryAfter\x1a\x91\x01\n" +
 	"\bS3Object\x129\n" +
 	"\ts3_config\x18\x01 \x01(\v2\x1c.memos.store.StorageS3ConfigR\bs3Config\x12\x10\n" +
 	"\x03key\x18\x02 \x01(\tR\x03key\x12\x1d\n" +

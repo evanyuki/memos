@@ -2,6 +2,7 @@ package v1
 
 import (
 	"context"
+	"encoding/json"
 	"math"
 	"reflect"
 	"strconv"
@@ -9,12 +10,30 @@ import (
 	"time"
 	"unicode"
 
+	"google.golang.org/protobuf/encoding/protojson"
 	"google.golang.org/protobuf/proto"
 
 	"github.com/usememos/memos/internal/photometadata"
 	v1pb "github.com/usememos/memos/proto/gen/api/v1"
 	storepb "github.com/usememos/memos/proto/gen/store"
+	"github.com/usememos/memos/store"
 )
+
+// IndexPhoto records camera and display information after the upload has committed.
+func (s *APIV1Service) IndexPhoto(ctx context.Context, a *store.Attachment, data []byte) error {
+	meta, _ := extractPhotoMetadata(ctx, data, a.Type, a.Payload.GetMediaMetadata())
+	if meta == nil {
+		return nil
+	}
+	if photo := meta.GetPhoto(); photo != nil {
+		photo.Location = nil
+	}
+	encoded, err := protojson.Marshal(meta)
+	if err != nil {
+		return err
+	}
+	return s.Store.UpdateAttachment(ctx, &store.UpdateAttachment{ID: a.ID, PayloadPatch: map[string]any{"mediaMetadata": json.RawMessage(encoded)}})
+}
 
 // extractPhotoMetadata never rewrites image bytes. Successfully read fields override
 // client guesses; fields unsupported by the parser retain validated client values.
@@ -48,7 +67,6 @@ func extractPhotoMetadata(ctx context.Context, blob []byte, mimeType string, cli
 			}
 		}
 	}
-	photo.Location = metadataLocation(tags)
 	width, height := meta.Width, meta.Height
 	if width <= 0 || height <= 0 {
 		w, h := metadataInteger(tags["ExifImageWidth"], 1, math.MaxInt32), metadataInteger(tags["ExifImageHeight"], 1, math.MaxInt32)
@@ -174,28 +192,4 @@ func metadataCaptureTime(tags map[string]any) *v1pb.MediaCaptureTime {
 		return capture
 	}
 	return nil
-}
-
-func metadataLocation(tags map[string]any) *v1pb.MediaLocation {
-	latitude, longitude := metadataNumber(tags["GPSLatitude"]), metadataNumber(tags["GPSLongitude"])
-	ns, ew := metadataText(tags["GPSLatitudeRef"]), metadataText(tags["GPSLongitudeRef"])
-	if latitude == nil || longitude == nil || (ns != "N" && ns != "S") || (ew != "E" && ew != "W") {
-		return nil
-	}
-	if ns == "S" {
-		*latitude = -*latitude
-	}
-	if ew == "W" {
-		*longitude = -*longitude
-	}
-	location := &v1pb.MediaLocation{Latitude: latitude, Longitude: longitude, AltitudeMeters: metadataNumber(tags["GPSAltitude"])}
-	if location.AltitudeMeters != nil {
-		if ref := metadataNumber(tags["GPSAltitudeRef"]); ref != nil && *ref == 1 {
-			*location.AltitudeMeters = -*location.AltitudeMeters
-		}
-	}
-	if validateMediaLocation(location) != nil {
-		return nil
-	}
-	return location
 }

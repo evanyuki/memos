@@ -171,7 +171,7 @@ func TestAttachmentMetadataFollowsMemoVisibility(t *testing.T) {
 	require.Len(t, listed.Attachments, 1)
 
 	protected := store.Protected
-	memoID := memoIDFromName(ctx, t, ts, memo.Name)
+	memoID := parseMemoIDFromNameForTest(t, ts, memo.Name)
 	require.NoError(t, ts.Store.UpdateMemo(ctx, &store.UpdateMemo{ID: memoID, Visibility: &protected}))
 	_, err = ts.Service.GetAttachment(ctx, &v1pb.GetAttachmentRequest{Name: attachment.Name})
 	require.Equal(t, codes.Unauthenticated, status.Code(err))
@@ -216,7 +216,7 @@ func TestCreateAttachmentMemoPermission(t *testing.T) {
 		stored, err := ts.Store.GetAttachment(ctx, &store.FindAttachment{UID: &attachmentUID})
 		require.NoError(t, err)
 		require.NotNil(t, stored.MemoID)
-		require.Equal(t, memoIDFromName(ctx, t, ts, memo.Name), *stored.MemoID)
+		require.Equal(t, parseMemoIDFromNameForTest(t, ts, memo.Name), *stored.MemoID)
 	})
 
 	t.Run("admin cannot create an admin-owned attachment linked to another user's memo", func(t *testing.T) {
@@ -286,16 +286,6 @@ func TestCreateAttachmentMemoPermission(t *testing.T) {
 		require.NoError(t, err)
 		require.Empty(t, attachments)
 	})
-}
-
-func memoIDFromName(ctx context.Context, t *testing.T, ts *TestService, name string) int32 {
-	t.Helper()
-	memoUID, err := apiv1.ExtractMemoUIDFromName(name)
-	require.NoError(t, err)
-	memo, err := ts.Store.GetMemo(ctx, &store.FindMemo{UID: &memoUID})
-	require.NoError(t, err)
-	require.NotNil(t, memo)
-	return memo.ID
 }
 
 func TestCreateAttachmentMotionMedia(t *testing.T) {
@@ -385,7 +375,9 @@ func TestCreateAttachmentMediaMetadata(t *testing.T) {
 		},
 	})
 	require.NoError(t, err)
-	require.True(t, proto.Equal(photoMetadata, photo.MediaMetadata))
+	expectedPhoto := proto.CloneOf(photoMetadata)
+	expectedPhoto.GetPhoto().Location = nil
+	require.True(t, proto.Equal(expectedPhoto, photo.MediaMetadata))
 
 	photoUID, err := apiv1.ExtractAttachmentUIDFromName(photo.Name)
 	require.NoError(t, err)
@@ -397,7 +389,7 @@ func TestCreateAttachmentMediaMetadata(t *testing.T) {
 
 	gotPhoto, err := ts.Service.GetAttachment(userCtx, &v1pb.GetAttachmentRequest{Name: photo.Name})
 	require.NoError(t, err)
-	require.True(t, proto.Equal(photoMetadata, gotPhoto.MediaMetadata))
+	require.True(t, proto.Equal(expectedPhoto, gotPhoto.MediaMetadata))
 
 	listed, err := ts.Service.ListAttachments(userCtx, &v1pb.ListAttachmentsRequest{PageSize: 100})
 	require.NoError(t, err)
@@ -409,7 +401,7 @@ func TestCreateAttachmentMediaMetadata(t *testing.T) {
 		}
 	}
 	require.NotNil(t, listedPhoto)
-	require.True(t, proto.Equal(photoMetadata, listedPhoto.MediaMetadata))
+	require.True(t, proto.Equal(expectedPhoto, listedPhoto.MediaMetadata))
 
 	memo, err := ts.Service.CreateMemo(userCtx, &v1pb.CreateMemoRequest{Memo: &v1pb.Memo{
 		Content:     "memo with metadata",
@@ -418,7 +410,7 @@ func TestCreateAttachmentMediaMetadata(t *testing.T) {
 	}})
 	require.NoError(t, err)
 	require.Len(t, memo.Attachments, 1)
-	require.True(t, proto.Equal(photoMetadata, memo.Attachments[0].MediaMetadata))
+	require.True(t, proto.Equal(expectedPhoto, memo.Attachments[0].MediaMetadata))
 
 	video, err := ts.Service.CreateAttachment(userCtx, &v1pb.CreateAttachmentRequest{
 		Attachment: &v1pb.Attachment{

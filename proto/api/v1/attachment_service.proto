@@ -177,6 +177,10 @@ message Attachment {
     (google.api.field_behavior) = OPTIONAL,
     (google.api.field_behavior) = IMMUTABLE
   ];
+  // Allow readers of the memo to explicitly download the untouched camera file.
+  bool allow_original = 11 [(google.api.field_behavior) = OPTIONAL];
+  // Location inspection result: present, not_found or unknown. Empty until inspected.
+  string location_status = 12 [(google.api.field_behavior) = OUTPUT_ONLY];
 }
 
 message CreateAttachmentRequest {

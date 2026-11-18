@@ -36,7 +36,7 @@ RUN --mount=type=cache,target=/go/pkg/mod \
 
 FROM alpine:3.21
 
-RUN apk add --no-cache ca-certificates tzdata && \
+RUN apk add --no-cache exiftool vips-tools vips-heif ffmpeg ca-certificates tzdata && \
     addgroup -g 10001 -S nonroot && \
     adduser -u 10001 -S -G nonroot -h /tmp/memos nonroot && \
     mkdir -p /tmp/memos && \
