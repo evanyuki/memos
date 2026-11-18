@@ -15,28 +15,18 @@ vi.mock("@/hooks/useMediaQuery", () => ({
   default: () => false,
 }));
 
-vi.mock("@/components/map/LazyLocationPicker", () => ({
-  LazyLocationPicker: () => <div data-testid="attachment-location-map" />,
-}));
-
 const labels: Record<string, string> = {
   "attachment-details.actions.hide": "Hide attachment details",
-  "attachment-details.actions.hide-map": "Hide map",
   "attachment-details.actions.show": "Show attachment details",
-  "attachment-details.actions.show-map": "Show map",
-  "attachment-details.empty": "No saved capture metadata.",
-  "attachment-details.fields.altitude": "Altitude",
   "attachment-details.fields.camera": "Camera",
   "attachment-details.fields.captured": "Captured",
   "attachment-details.fields.dimensions": "Dimensions",
   "attachment-details.fields.exposure": "Exposure",
   "attachment-details.fields.file": "File",
   "attachment-details.fields.lens": "Lens",
-  "attachment-details.fields.location": "Coordinates",
   "attachment-details.sections.camera": "Camera",
   "attachment-details.sections.capture": "Capture",
   "attachment-details.sections.file": "File",
-  "attachment-details.sections.location": "Location",
   "attachment-details.timezone-unknown": "Time zone unknown",
   "attachment-details.title": "Details",
 };
@@ -270,32 +260,8 @@ describe("<PreviewImageDialog>", () => {
     expect(screen.getByText("4032 × 3024 px")).toBeInTheDocument();
     expect(screen.getByText("Apple iPhone")).toBeInTheDocument();
     expect(screen.getByText("ƒ/1.78 · 1/120 s · ISO 64 · 6.86 mm")).toBeInTheDocument();
-    expect(screen.getByText("1.35210°, 103.81980°")).toBeInTheDocument();
+    expect(screen.queryByText("1.35210°, 103.81980°")).not.toBeInTheDocument();
     expect(screen.getByText("Time zone unknown")).toBeInTheDocument();
-  });
-
-  it("loads the attachment map only after an explicit action", () => {
-    const attachment = buildAttachmentWithPhotoMetadata();
-    render(
-      <PreviewImageDialog
-        open
-        onOpenChange={vi.fn()}
-        items={[
-          {
-            id: attachment.name,
-            kind: "image",
-            sourceUrl: "/image.jpg",
-            filename: attachment.filename,
-            attachments: [attachment],
-          },
-        ]}
-      />,
-    );
-
-    fireEvent.click(screen.getByRole("button", { name: "Show attachment details" }));
-    expect(screen.queryByTestId("attachment-location-map")).not.toBeInTheDocument();
-    fireEvent.click(screen.getByRole("button", { name: "Show map" }));
-    expect(screen.getByTestId("attachment-location-map")).toBeInTheDocument();
   });
 
   it("closes details before closing the media dialog with Escape", async () => {
@@ -304,7 +270,15 @@ describe("<PreviewImageDialog>", () => {
       <PreviewImageDialog
         open
         onOpenChange={onOpenChange}
-        items={[{ id: "image-1", kind: "image", sourceUrl: "/image.jpg", filename: "image.jpg" }]}
+        items={[
+          {
+            id: "image-1",
+            kind: "image",
+            sourceUrl: "/image.jpg",
+            filename: "image.jpg",
+            attachments: [buildAttachmentWithPhotoMetadata()],
+          },
+        ]}
       />,
     );
 

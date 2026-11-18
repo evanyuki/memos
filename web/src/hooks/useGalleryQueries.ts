@@ -1,5 +1,5 @@
 import { fromJson, type JsonValue } from "@bufbuild/protobuf";
-import { useInfiniteQuery, useQuery } from "@tanstack/react-query";
+import { type InfiniteData, useInfiniteQuery, useQuery, useQueryClient } from "@tanstack/react-query";
 import { getRequestToken, refreshAccessToken } from "@/connect";
 import { useAuth } from "@/contexts/AuthContext";
 import { type Attachment, AttachmentSchema } from "@/types/proto/api/v1/attachment_service_pb";
@@ -16,7 +16,10 @@ export interface GalleryFilters {
   state: "NORMAL" | "ARCHIVED";
 }
 
-export const galleryKeys = { all: ["gallery"] as const };
+export const galleryKeys = {
+  all: ["gallery"] as const,
+  photo: (scope: string, uid: string, shareToken = "") => ["gallery", "photo", scope, uid, shareToken] as const,
+};
 
 export class GalleryRequestError extends Error {
   constructor(public readonly status: number) {
@@ -79,10 +82,22 @@ export function useGalleryPhotos(filters: GalleryFilters) {
   });
 }
 
-export function useGalleryPhoto(uid: string, shareToken?: string) {
+export function useGalleryPhoto(uid: string, shareToken?: string, listFilters?: GalleryFilters) {
   const { currentUser, isInitialized } = useAuth();
+  const client = useQueryClient();
+  const scope = currentUser?.name ?? "guest";
   return useQuery({
-    queryKey: [...galleryKeys.all, "photo", currentUser?.name ?? "guest", uid, shareToken ?? ""],
+    queryKey: galleryKeys.photo(scope, uid, shareToken),
+    placeholderData: () => {
+      if (!isInitialized || shareToken || !listFilters) return undefined;
+      const list = client.getQueryState<InfiniteData<{ photos: GalleryPhoto[] }>>([...galleryKeys.all, "list", scope, listFilters]);
+      if (list?.status !== "success" || list.isInvalidated) return undefined;
+      for (const page of list.data?.pages ?? []) {
+        const photo = page.photos.find(({ attachment }) => attachment.name === `attachments/${uid}`);
+        if (photo) return photo;
+      }
+      return undefined;
+    },
     queryFn: async ({ signal }) => {
       const query = shareToken ? `?${new URLSearchParams({ share_token: shareToken })}` : "";
       const value = (await fetchGallery(`/api/v1/gallery/photos/${encodeURIComponent(uid)}${query}`, signal)) as {

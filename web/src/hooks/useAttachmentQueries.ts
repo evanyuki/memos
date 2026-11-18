@@ -1,9 +1,8 @@
 import { create } from "@bufbuild/protobuf";
 import { FieldMaskSchema } from "@bufbuild/protobuf/wkt";
-import { useInfiniteQuery, useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { useInfiniteQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { attachmentServiceClient } from "@/connect";
 import {
-  type Attachment,
   AttachmentSchema,
   BatchDeleteAttachmentsRequestSchema,
   type ListAttachmentsRequest,
@@ -11,38 +10,15 @@ import {
 } from "@/types/proto/api/v1/attachment_service_pb";
 import { memoKeys } from "./useMemoQueries";
 
-// Query keys factory
-export const attachmentKeys = {
-  all: ["attachments"] as const,
-  lists: () => [...attachmentKeys.all, "list"] as const,
-  list: (filters?: Partial<ListAttachmentsRequest>) => [...attachmentKeys.lists(), filters] as const,
-  details: () => [...attachmentKeys.all, "detail"] as const,
-  detail: (name: string) => [...attachmentKeys.details(), name] as const,
-};
+const attachmentListKey = ["attachments", "list"] as const;
 
-// Hook to fetch attachments
-export function useAttachments() {
-  return useQuery({
-    queryKey: attachmentKeys.lists(),
-    queryFn: async () => {
-      const { attachments } = await attachmentServiceClient.listAttachments(create(ListAttachmentsRequestSchema, {}));
-      return attachments;
-    },
-  });
-}
+export type AttachmentListOptions = Partial<Pick<ListAttachmentsRequest, "pageSize" | "filter" | "orderBy">>;
 
-export function useInfiniteAttachments(request: Partial<ListAttachmentsRequest> = {}, options?: { enabled?: boolean }) {
+export function useInfiniteAttachments(request: AttachmentListOptions = {}, options?: { enabled?: boolean }) {
   return useInfiniteQuery({
-    queryKey: attachmentKeys.list(request),
-    queryFn: async ({ pageParam }) => {
-      const response = await attachmentServiceClient.listAttachments(
-        create(ListAttachmentsRequestSchema, {
-          ...request,
-          pageToken: pageParam || "",
-        } as Record<string, unknown>),
-      );
-      return response;
-    },
+    queryKey: [...attachmentListKey, request],
+    queryFn: ({ pageParam }) =>
+      attachmentServiceClient.listAttachments(create(ListAttachmentsRequestSchema, { ...request, pageToken: pageParam })),
     initialPageParam: "",
     getNextPageParam: (lastPage) => lastPage.nextPageToken || undefined,
     staleTime: 1000 * 60,
@@ -51,52 +27,17 @@ export function useInfiniteAttachments(request: Partial<ListAttachmentsRequest> 
   });
 }
 
-// Hook to create/upload attachment
-export function useCreateAttachment() {
-  const queryClient = useQueryClient();
-
-  return useMutation({
-    mutationFn: async (attachment: Attachment) => {
-      const result = await attachmentServiceClient.createAttachment({ attachment });
-      return result;
-    },
-    onSuccess: () => {
-      // Invalidate attachments list
-      queryClient.invalidateQueries({ queryKey: attachmentKeys.lists() });
-    },
-  });
-}
-
 export function useUpdateAttachment() {
   const queryClient = useQueryClient();
   return useMutation({
-    mutationFn: ({ name, filename }: { name: string; filename: string }) =>
+    mutationFn: (update: { name: string; filename: string } | { name: string; allowOriginal: boolean }) =>
       attachmentServiceClient.updateAttachment({
-        attachment: create(AttachmentSchema, { name, filename }),
-        updateMask: create(FieldMaskSchema, { paths: ["filename"] }),
+        attachment: create(AttachmentSchema, update),
+        updateMask: create(FieldMaskSchema, { paths: ["filename" in update ? "filename" : "allow_original"] }),
       }),
-    onSuccess: (attachment) => {
-      queryClient.setQueryData(attachmentKeys.detail(attachment.name), attachment);
-      void queryClient.invalidateQueries({ queryKey: attachmentKeys.lists() });
+    onSuccess: () => {
+      void queryClient.invalidateQueries({ queryKey: attachmentListKey });
       void queryClient.invalidateQueries({ queryKey: memoKeys.all });
-    },
-  });
-}
-
-// Hook to delete attachment
-export function useDeleteAttachment() {
-  const queryClient = useQueryClient();
-
-  return useMutation({
-    mutationFn: async (name: string) => {
-      await attachmentServiceClient.deleteAttachment({ name });
-      return name;
-    },
-    onSuccess: (name) => {
-      // Remove from cache
-      queryClient.removeQueries({ queryKey: attachmentKeys.detail(name) });
-      // Invalidate lists
-      queryClient.invalidateQueries({ queryKey: attachmentKeys.lists() });
     },
   });
 }
@@ -105,15 +46,9 @@ export function useBatchDeleteAttachments() {
   const queryClient = useQueryClient();
 
   return useMutation({
-    mutationFn: async (names: string[]) => {
-      await attachmentServiceClient.batchDeleteAttachments(create(BatchDeleteAttachmentsRequestSchema, { names }));
-      return names;
-    },
-    onSuccess: (names) => {
-      for (const name of names) {
-        queryClient.removeQueries({ queryKey: attachmentKeys.detail(name) });
-      }
-      queryClient.invalidateQueries({ queryKey: attachmentKeys.lists() });
+    mutationFn: (names: string[]) => attachmentServiceClient.batchDeleteAttachments(create(BatchDeleteAttachmentsRequestSchema, { names })),
+    onSuccess: () => {
+      void queryClient.invalidateQueries({ queryKey: attachmentListKey });
     },
   });
 }

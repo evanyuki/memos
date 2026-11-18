@@ -2,23 +2,16 @@ import { timestampDate } from "@bufbuild/protobuf/wkt";
 import type { Attachment } from "@/types/proto/api/v1/attachment_service_pb";
 import { formatFileSize, getFileTypeLabel } from "./format";
 
-export interface MediaLocationDisplay {
-  latitude: number;
-  longitude: number;
-  coordinates: string;
-  altitude?: string;
-}
-
 export interface MediaMetadataDisplay {
   file?: string;
   dimensions?: string;
   uploaded?: string;
   duration?: string;
   captured?: string;
-  utcOffset?: string;
+  timeZone?: string;
   camera?: string;
   lens?: string;
-  exposure?: string;
+  exposure?: string[];
   exposureBias?: string;
   exposureProgram?: string;
   meteringMode?: string;
@@ -27,9 +20,7 @@ export interface MediaMetadataDisplay {
   colorSpace?: string;
   iccProfile?: string;
   bitDepth?: string;
-  location?: MediaLocationDisplay;
   sourceExifOrientation?: number;
-  hasSavedMetadata: boolean;
 }
 
 const formatNumber = (value: number, locale: string, maximumFractionDigits = 2) =>
@@ -79,7 +70,7 @@ export const formatExposureTime = (seconds: number, locale: string): string => {
 
 export const buildMediaMetadataDisplay = (attachments: Attachment[] | undefined, locale: string): MediaMetadataDisplay => {
   if (!attachments || attachments.length === 0) {
-    return { hasSavedMetadata: false };
+    return {};
   }
 
   const photoAttachment = attachments.find((attachment) => attachment.mediaMetadata?.details.case === "photo");
@@ -96,25 +87,14 @@ export const buildMediaMetadataDisplay = (attachments: Attachment[] | undefined,
   const fileParts = [getFileTypeLabel(primaryAttachment.type), totalSize > 0n ? formatFileSize(Number(totalSize)) : undefined].filter(
     Boolean,
   );
+  const offset = photo?.captureTime?.utcOffset;
   const camera = [photo?.cameraMake, photo?.cameraModel].filter(Boolean).join(" ") || undefined;
   const exposure = [
     photo?.fNumber !== undefined ? `ƒ/${formatNumber(photo.fNumber, locale)}` : undefined,
     photo?.exposureTimeSeconds !== undefined ? formatExposureTime(photo.exposureTimeSeconds, locale) : undefined,
     photo?.iso !== undefined ? `ISO ${photo.iso}` : undefined,
     photo?.focalLengthMm !== undefined ? `${formatNumber(photo.focalLengthMm, locale)} mm` : undefined,
-  ]
-    .filter(Boolean)
-    .join(" · ");
-
-  const location =
-    photo?.location?.latitude !== undefined && photo.location.longitude !== undefined
-      ? {
-          latitude: photo.location.latitude,
-          longitude: photo.location.longitude,
-          coordinates: `${photo.location.latitude.toFixed(5)}°, ${photo.location.longitude.toFixed(5)}°`,
-          altitude: photo.location.altitudeMeters !== undefined ? `${formatNumber(photo.location.altitudeMeters, locale, 1)} m` : undefined,
-        }
-      : undefined;
+  ].filter((value) => value !== undefined);
 
   return {
     file: fileParts.join(" · ") || undefined,
@@ -127,10 +107,10 @@ export const buildMediaMetadataDisplay = (attachments: Attachment[] | undefined,
       : undefined,
     duration: video?.durationSeconds !== undefined ? formatMediaDuration(video.durationSeconds) : undefined,
     captured: photo?.captureTime?.localDateTime ? formatCivilDateTime(photo.captureTime.localDateTime, locale) : undefined,
-    utcOffset: photo?.captureTime?.utcOffset,
+    timeZone: offset ? (offset === "Z" ? "UTC" : "UTC" + offset) : undefined,
     camera,
     lens: photo?.lensModel || undefined,
-    exposure: exposure || undefined,
+    exposure: exposure.length ? exposure : undefined,
     exposureBias: photo?.exposureBiasEv !== undefined ? `${formatNumber(photo.exposureBiasEv, locale)} EV` : undefined,
     exposureProgram: photo?.exposureProgram || undefined,
     meteringMode: photo?.meteringMode || undefined,
@@ -139,8 +119,6 @@ export const buildMediaMetadataDisplay = (attachments: Attachment[] | undefined,
     colorSpace: photo?.colorSpace || undefined,
     iccProfile: photo?.iccProfile || undefined,
     bitDepth: photo?.bitsPerSample !== undefined ? String(photo.bitsPerSample) : undefined,
-    location,
     sourceExifOrientation: photo?.sourceExifOrientation,
-    hasSavedMetadata: attachments.some((attachment) => attachment.mediaMetadata !== undefined),
   };
 };

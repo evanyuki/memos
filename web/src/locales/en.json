@@ -55,16 +55,10 @@
   },
   "attachment-details": {
     "actions": {
-      "copied": "Coordinates copied",
-      "copy-coordinates": "Copy coordinates",
       "hide": "Hide attachment details",
-      "hide-map": "Hide map",
-      "show": "Show attachment details",
-      "show-map": "Show map"
+      "show": "Show attachment details"
     },
-    "empty": "No saved capture metadata.",
     "fields": {
-      "altitude": "Altitude",
       "camera": "Camera",
       "captured": "Captured",
       "dimensions": "Dimensions",
@@ -72,7 +66,6 @@
       "exposure": "Exposure",
       "file": "File",
       "lens": "Lens",
-      "location": "Coordinates",
       "source-orientation": "Source EXIF orientation",
       "uploaded": "Uploaded"
     },
@@ -80,7 +73,6 @@
       "camera": "Camera",
       "capture": "Capture",
       "file": "File",
-      "location": "Location",
       "technical": "Technical details"
     },
     "timezone-unknown": "Time zone unknown",
@@ -722,8 +714,8 @@
       "language-description": "Updates the interface language immediately and saves it to your account.",
       "memo-defaults-description": "Set the defaults used when composing new memos.",
       "memo-defaults-title": "Memo defaults",
-      "save-media-metadata": "Save media metadata",
-      "save-media-metadata-description": "For future uploads, preserve original image bytes and available camera, capture time, location, color, dimensions, and video details. Anyone who can view the attachment can receive this information. Existing uploads are unchanged.",
+      "save-video-metadata": "Save video metadata",
+      "save-video-metadata-description": "Read dimensions and duration when uploading videos.",
       "theme-description": "Applies the selected theme immediately on this device.",
       "theme": "Theme",
       "uploads-privacy-description": "Control privacy-sensitive information submitted with uploaded media.",
@@ -1096,6 +1088,13 @@
     "upload-attachment": "Upload Attachment(s)"
   },
   "gallery": {
+    "allow-original": "Allow readers to download this camera original, including its metadata",
+    "allow-live-original": "Allow readers to download the camera photo and its original video. Both files may include location.",
+    "download-original": "Download camera original",
+    "location-present": "The original contains location metadata.",
+    "location-not-found": "No standard location tags found.",
+    "location-unknown": "Location has not been verified.",
+    "original-error": "Could not change original download access.",
     "title": "Gallery",
     "add-photos": "Add photos in a memo",
     "visibility": "Memo visibility",
@@ -1120,8 +1119,7 @@
     "copy-error": "The link could not be copied.",
     "visibility-error": "Visibility could not be updated.",
     "change-visibility": "Change visibility of the whole memo?",
-    "visibility-scope": "This changes the source memo and every photo in it. It does not set a separate photo permission.",
-    "share-scope": "This share link grants access to the entire memo and all its attachments.",
+    "visibility-scope": "This changes who can view the memo and all its photos.",
     "open-memo": "Open source memo",
     "photo-unavailable": "This photo is unavailable, or you do not have permission to view it.",
     "color-space": "Color space",

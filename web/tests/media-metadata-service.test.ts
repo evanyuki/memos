@@ -1,13 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
-const mocks = vi.hoisted(() => ({
-  parseExif: vi.fn(),
-}));
-
-vi.mock("exifr", () => ({
-  parse: mocks.parseExif,
-}));
-
 import { mediaMetadataService } from "@/components/MemoEditor/services/mediaMetadataService";
 
 describe("mediaMetadataService", () => {
@@ -20,127 +12,11 @@ describe("mediaMetadataService", () => {
       configurable: true,
       value: vi.fn(),
     });
-    vi.stubGlobal(
-      "createImageBitmap",
-      vi.fn(async () => ({ width: 640, height: 480, close: vi.fn() })),
-    );
   });
 
   afterEach(() => {
-    vi.unstubAllGlobals();
+    vi.restoreAllMocks();
     vi.useRealTimers();
-  });
-
-  it("normalizes selected EXIF fields without inventing a timezone", async () => {
-    mocks.parseExif.mockResolvedValue({
-      Make: " Apple\0 ",
-      Model: "iPhone",
-      LensModel: "Main Camera",
-      Orientation: 6,
-      ExifImageWidth: 4000,
-      ExifImageHeight: 3000,
-      DateTimeOriginal: "2026:08:10 14:32:18",
-      SubSecTimeOriginal: "123",
-      latitude: 1.3521,
-      longitude: 103.8198,
-      GPSAltitude: 18.4,
-      GPSAltitudeRef: 0,
-      FNumber: 1.78,
-      ExposureTime: 1 / 120,
-      ISO: 64,
-      FocalLength: 6.86,
-    });
-
-    const metadata = await mediaMetadataService.extract(new File([new Uint8Array([1, 2, 3])], "photo.jpg", { type: "image/jpeg" }));
-
-    expect(metadata?.width).toBe(3000);
-    expect(metadata?.height).toBe(4000);
-    expect(metadata?.details.case).toBe("photo");
-    if (metadata?.details.case !== "photo") throw new Error("expected photo metadata");
-    expect(metadata.details.value.captureTime?.localDateTime).toBe("2026-08-10T14:32:18.123");
-    expect(metadata.details.value.captureTime?.utcOffset).toBeUndefined();
-    expect(metadata.details.value.location).toMatchObject({ latitude: 1.3521, longitude: 103.8198, altitudeMeters: 18.4 });
-    expect(metadata.details.value).toMatchObject({
-      sourceExifOrientation: 6,
-      cameraMake: "Apple",
-      cameraModel: "iPhone",
-      lensModel: "Main Camera",
-      fNumber: 1.78,
-      exposureTimeSeconds: 1 / 120,
-      iso: 64,
-      focalLengthMm: 6.86,
-    });
-  });
-
-  it("preserves a valid EXIF UTC offset", async () => {
-    mocks.parseExif.mockResolvedValue({
-      DateTimeOriginal: "2026:08:10 14:32:18\0  ",
-      OffsetTimeOriginal: "+08:00\0",
-    });
-
-    const metadata = await mediaMetadataService.extract(new File([new Uint8Array([1])], "photo.jpg", { type: "image/jpeg" }));
-
-    expect(metadata?.details.case).toBe("photo");
-    if (metadata?.details.case !== "photo") throw new Error("expected photo metadata");
-    expect(metadata.details.value.captureTime?.utcOffset).toBe("+08:00");
-  });
-
-  it("indexes photographic color and exposure data without inferring missing values", async () => {
-    mocks.parseExif.mockResolvedValue({
-      ExposureCompensation: -1 / 3,
-      ExposureProgram: 3,
-      MeteringMode: 5,
-      WhiteBalance: 0,
-      ColorSpace: 1,
-      ProfileDescription: "Display P3\0",
-      BitsPerSample: [10, 10, 10],
-      FocalLengthIn35mmFormat: 50,
-    });
-    const metadata = await mediaMetadataService.extract(new File([new Uint8Array([1])], "photo.jpg", { type: "image/jpeg" }));
-    expect(metadata?.details.case).toBe("photo");
-    if (metadata?.details.case !== "photo") throw new Error("expected photo metadata");
-    expect(metadata.details.value).toMatchObject({
-      exposureBiasEv: -1 / 3,
-      exposureProgram: "Aperture-priority AE",
-      meteringMode: "Multi-segment",
-      whiteBalance: "Auto",
-      colorSpace: "sRGB",
-      iccProfile: "Display P3",
-      bitsPerSample: 10,
-      focalLength35mm: 50,
-    });
-    expect(mocks.parseExif).toHaveBeenCalledWith(expect.any(File), expect.objectContaining({ icc: true }));
-    expect(metadata.details.value.location).toBeUndefined();
-  });
-
-  it("leaves unknown color encodings absent", async () => {
-    mocks.parseExif.mockResolvedValue({ ColorSpace: 42, WhiteBalance: 42, ProfileDescription: "", BitsPerSample: 200 });
-    const metadata = await mediaMetadataService.extract(new File([new Uint8Array([1])], "photo.jpg", { type: "image/jpeg" }));
-    expect(metadata?.details.case).toBeUndefined();
-  });
-
-  it("drops incomplete raw GPS coordinates instead of guessing their direction", async () => {
-    mocks.parseExif.mockResolvedValue({
-      GPSLatitude: [1, 21, 7.56],
-      GPSLongitude: [103, 49, 11.28],
-      GPSLongitudeRef: "E",
-    });
-
-    const metadata = await mediaMetadataService.extract(new File([new Uint8Array([1])], "photo.jpg", { type: "image/jpeg" }));
-
-    expect(metadata?.details.case).toBeUndefined();
-    expect(metadata?.width).toBe(640);
-    expect(metadata?.height).toBe(480);
-  });
-
-  it("falls back to browser dimensions when EXIF parsing fails", async () => {
-    mocks.parseExif.mockRejectedValue(new Error("unsupported image"));
-
-    const metadata = await mediaMetadataService.extract(new File([new Uint8Array([1])], "photo.webp", { type: "image/webp" }));
-
-    expect(metadata?.width).toBe(640);
-    expect(metadata?.height).toBe(480);
-    expect(metadata?.details.case).toBeUndefined();
   });
 
   it("reads video dimensions and duration and revokes the object URL", async () => {
@@ -191,6 +67,6 @@ describe("mediaMetadataService", () => {
     const metadata = await mediaMetadataService.extract(new File(["hello"], "notes.txt", { type: "text/plain" }));
 
     expect(metadata).toBeUndefined();
-    expect(mocks.parseExif).not.toHaveBeenCalled();
+    expect(URL.createObjectURL).not.toHaveBeenCalled();
   });
 });

@@ -9,7 +9,7 @@ import { useBlobUrls } from "./useBlobUrls";
 
 /**
  * Single ingest point turning picked/pasted/dropped Files into LocalFiles.
- * Media metadata extraction starts here (not at upload time) so every upload
+ * Optional video metadata extraction starts here so every upload
  * path inherits the preference from the LocalFile instead of threading it.
  */
 export const toLocalFiles = (files: File[], options: { createBlobUrl: (file: File) => string; saveMediaMetadata: boolean }): LocalFile[] =>
@@ -18,7 +18,7 @@ export const toLocalFiles = (files: File[], options: { createBlobUrl: (file: Fil
       file,
       previewUrl: options.createBlobUrl(file),
       origin: "upload",
-      mediaMetadata: options.saveMediaMetadata ? mediaMetadataService.extract(file) : undefined,
+      mediaMetadata: options.saveMediaMetadata && file.type.startsWith("video/") ? mediaMetadataService.extract(file) : undefined,
     })),
   );
 

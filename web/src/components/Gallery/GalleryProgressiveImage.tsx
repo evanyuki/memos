@@ -1,5 +1,6 @@
 import { type PointerEvent, useCallback, useEffect, useRef, useState } from "react";
 import MotionPhotoPreview from "@/components/MotionPhotoPreview";
+import ProgressivePhoto from "@/components/ProgressivePhoto";
 import { cn } from "@/lib/utils";
 import type { PreviewMediaItem } from "@/utils/media-item";
 import GalleryContainedImageFrame from "./GalleryContainedImageFrame";
@@ -22,24 +23,15 @@ const dimensions = (item: PreviewMediaItem) => {
 };
 
 export default function GalleryProgressiveImage({ item, alt, className, onZoomChange }: GalleryProgressiveImageProps) {
-  const [thumbnailLoaded, setThumbnailLoaded] = useState(false);
-  const [highResolutionLoaded, setHighResolutionLoaded] = useState(false);
-  const [highResolutionError, setHighResolutionError] = useState(false);
   const [scale, setScale] = useState(1);
   const [pan, setPan] = useState({ x: 0, y: 0 });
   const stageRef = useRef<HTMLDivElement>(null);
   const pointersRef = useRef(new Map<number, { x: number; y: number }>());
   const pinchRef = useRef<{ distance: number; scale: number } | undefined>(undefined);
   const dragRef = useRef<{ pointerId: number; x: number; y: number } | undefined>(undefined);
-  const thumbnail = getGalleryPreviewSource(item);
-  const highResolution = item.kind === "image" ? item.sourceUrl : (item.posterUrl ?? "");
-  const size = dimensions(item);
   const isImage = item.kind === "image";
 
   useEffect(() => {
-    setThumbnailLoaded(false);
-    setHighResolutionLoaded(false);
-    setHighResolutionError(false);
     setScale(1);
     setPan({ x: 0, y: 0 });
     onZoomChange?.(false);
@@ -155,6 +147,7 @@ export default function GalleryProgressiveImage({ item, alt, className, onZoomCh
     );
   }
 
+  const size = dimensions(item);
   return (
     <div
       ref={stageRef}
@@ -168,34 +161,16 @@ export default function GalleryProgressiveImage({ item, alt, className, onZoomCh
       style={{ touchAction: "none" }}
     >
       <GalleryContainedImageFrame width={size.width} height={size.height} className="absolute inset-0">
-        <img
-          src={thumbnail}
-          alt={highResolutionError ? alt : ""}
-          aria-hidden={!highResolutionError}
-          className={cn(
-            "absolute inset-0 block size-full object-contain transition-opacity duration-300",
-            thumbnailLoaded ? "opacity-100" : "opacity-0",
-          )}
+        <ProgressivePhoto
+          key={item.id}
+          src={item.sourceUrl}
+          posterUrl={getGalleryPreviewSource(item)}
+          alt={alt}
+          className="absolute inset-0 block size-full select-none object-contain"
           style={{ transform: `translate3d(${pan.x}px, ${pan.y}px, 0) scale(${scale})`, transformOrigin: "center" }}
-          onLoad={() => setThumbnailLoaded(true)}
           draggable={false}
           decoding="async"
         />
-        {!highResolutionError && (
-          <img
-            src={highResolution}
-            alt={alt}
-            className={cn(
-              "absolute inset-0 block size-full select-none object-contain transition-opacity duration-300",
-              highResolutionLoaded ? "opacity-100" : "opacity-0",
-            )}
-            style={{ transform: `translate3d(${pan.x}px, ${pan.y}px, 0) scale(${scale})`, transformOrigin: "center" }}
-            onLoad={() => setHighResolutionLoaded(true)}
-            onError={() => setHighResolutionError(true)}
-            draggable={false}
-            decoding="async"
-          />
-        )}
       </GalleryContainedImageFrame>
       {scale > 1 && (
         <span

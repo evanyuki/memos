@@ -1,8 +1,8 @@
 import { LoaderCircleIcon } from "lucide-react";
-import { Link, useParams, useSearchParams } from "react-router-dom";
+import { Link, useLocation, useParams, useSearchParams } from "react-router-dom";
 import GalleryPhotoView from "@/components/Gallery/GalleryPhotoView";
 import { Button } from "@/components/ui/button";
-import { useGalleryPhoto } from "@/hooks/useGalleryQueries";
+import { readGalleryFilters, useGalleryPhoto } from "@/hooks/useGalleryQueries";
 import { useTranslate } from "@/utils/i18n";
 
 export default function GalleryPhoto() {
@@ -10,11 +10,15 @@ export default function GalleryPhoto() {
   const { uid = "" } = useParams();
   const [params] = useSearchParams();
   const shareToken = params.get("share_token") ?? undefined;
-  const query = useGalleryPhoto(uid, shareToken);
+  const location = useLocation();
+  const query = useGalleryPhoto(uid, shareToken, location.state?.galleryReturn ? readGalleryFilters(params) : undefined);
   if (query.isPending)
     return (
-      <div role="status" className="flex justify-center py-20">
+      <div role="status" className="flex min-h-svh flex-col items-center justify-center gap-4">
         <LoaderCircleIcon className="size-6 animate-spin" aria-label={t("resource.fetching-data")} />
+        <Link to="/gallery" className="text-sm underline">
+          {t("gallery.title")}
+        </Link>
       </div>
     );
   if (query.isError || !query.data)
@@ -29,5 +33,5 @@ export default function GalleryPhoto() {
         </Link>
       </div>
     );
-  return <GalleryPhotoView key={uid} photo={query.data} shareToken={shareToken} />;
+  return <GalleryPhotoView key={uid} photo={query.data} shareToken={shareToken} loadingDetails={query.isPlaceholderData} />;
 }

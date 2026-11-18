@@ -44,7 +44,7 @@ describe("PreferencesSection media metadata setting", () => {
   it("updates the account setting with the save_media_metadata field mask", () => {
     render(<PreferencesSection />);
 
-    fireEvent.click(screen.getByRole("switch", { name: "setting.preference.save-media-metadata" }));
+    fireEvent.click(screen.getByRole("switch", { name: "setting.preference.save-video-metadata" }));
 
     expect(mocks.mutate).toHaveBeenCalledOnce();
     expect(mocks.mutate.mock.calls[0][0]).toEqual({

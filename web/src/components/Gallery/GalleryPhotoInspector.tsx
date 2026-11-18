@@ -1,10 +1,8 @@
-import { CheckIcon, CopyIcon, MapIcon, XIcon } from "lucide-react";
-import { type ReactNode, useEffect, useMemo, useRef, useState } from "react";
-import { LazyLocationPicker } from "@/components/map/LazyLocationPicker";
+import { XIcon } from "lucide-react";
+import { type ReactNode, useEffect, useMemo, useRef } from "react";
 import { Sheet, SheetContent, SheetDescription, SheetTitle } from "@/components/ui/sheet";
 import useMediaQuery from "@/hooks/useMediaQuery";
 import { usePhotoAnalysis } from "@/hooks/usePhotoAnalysis";
-import { cn } from "@/lib/utils";
 import { formatFileSize, getFileTypeLabel } from "@/utils/format";
 import { useTranslate } from "@/utils/i18n";
 import type { PreviewMediaItem } from "@/utils/media-item";
@@ -27,8 +25,6 @@ const actionClass =
 export default function GalleryPhotoInspector({ id, item, onClose, children }: GalleryPhotoInspectorProps) {
   const t = useTranslate();
   const desktop = useMediaQuery("lg");
-  const [showMap, setShowMap] = useState(false);
-  const [copied, setCopied] = useState(false);
   const closeRef = useRef<HTMLButtonElement>(null);
   const returnFocus = useRef<HTMLElement | null>(null);
   const locale = typeof document !== "undefined" ? document.documentElement.lang || "en" : "en";
@@ -60,21 +56,6 @@ export default function GalleryPhotoInspector({ id, item, onClose, children }: G
       if (returnFocus.current?.isConnected) returnFocus.current.focus({ preventScroll: true });
     };
   }, []);
-
-  useEffect(() => {
-    setShowMap(false);
-    setCopied(false);
-  }, [item.id]);
-
-  const copyCoordinates = async () => {
-    if (!details.location) return;
-    try {
-      await navigator.clipboard.writeText(`${details.location.latitude}, ${details.location.longitude}`);
-      setCopied(true);
-    } catch {
-      setCopied(false);
-    }
-  };
 
   const content = (
     <>
@@ -108,23 +89,14 @@ export default function GalleryPhotoInspector({ id, item, onClose, children }: G
             ) : null}
             {details.captured && <Row label={t("attachment-details.fields.captured")} value={details.captured} />}
             {details.captured && (
-              <Row
-                label={t("gallery.time-zone")}
-                value={
-                  details.utcOffset
-                    ? details.utcOffset === "Z"
-                      ? "UTC"
-                      : `UTC${details.utcOffset}`
-                    : t("attachment-details.timezone-unknown")
-                }
-              />
+              <Row label={t("gallery.time-zone")} value={details.timeZone ?? t("attachment-details.timezone-unknown")} />
             )}
           </dl>
         </InspectorSection>
-        {details.exposure && (
+        {(details.exposure || details.exposureBias) && (
           <InspectorSection title={t("attachment-details.fields.exposure")}>
             <div className="grid grid-cols-2 gap-2 text-xs tabular-nums">
-              {[...details.exposure.split(" · "), details.exposureBias].filter(Boolean).map((value) => (
+              {[...(details.exposure ?? []), details.exposureBias].filter(Boolean).map((value) => (
                 <span key={value} className="rounded-md border border-[var(--gallery-border)] bg-[var(--gallery-fill)] px-2 py-1">
                   {value}
                 </span>
@@ -165,41 +137,6 @@ export default function GalleryPhotoInspector({ id, item, onClose, children }: G
             </dl>
           </InspectorSection>
         )}
-        {details.location && (
-          <InspectorSection title={t("attachment-details.sections.location")}>
-            <dl className="space-y-1">
-              <Row label={t("attachment-details.fields.location")} value={details.location.coordinates} />
-              {details.location.altitude && <Row label={t("attachment-details.fields.altitude")} value={details.location.altitude} />}
-            </dl>
-            <div className="flex gap-2">
-              <button
-                type="button"
-                className={actionClass}
-                aria-label={t(copied ? "attachment-details.actions.copied" : "attachment-details.actions.copy-coordinates")}
-                onClick={() => void copyCoordinates()}
-              >
-                {copied ? <CheckIcon className="size-4" /> : <CopyIcon className="size-4" />}
-              </button>
-              <button
-                type="button"
-                className={cn(actionClass, "w-auto gap-2 px-2 text-xs")}
-                aria-expanded={showMap}
-                onClick={() => setShowMap(!showMap)}
-              >
-                <MapIcon className="size-4" />
-                {t(showMap ? "attachment-details.actions.hide-map" : "attachment-details.actions.show-map")}
-              </button>
-            </div>
-            {showMap && (
-              <LazyLocationPicker
-                className="h-44 rounded-xl"
-                latlng={{ lat: details.location.latitude, lng: details.location.longitude }}
-                readonly
-              />
-            )}
-          </InspectorSection>
-        )}
-        {!details.hasSavedMetadata && <p className="text-xs leading-5 text-[var(--gallery-muted)]">{t("attachment-details.empty")}</p>}
         {details.sourceExifOrientation !== undefined && (
           <dl>
             <Row label={t("attachment-details.fields.source-orientation")} value={String(details.sourceExifOrientation)} />

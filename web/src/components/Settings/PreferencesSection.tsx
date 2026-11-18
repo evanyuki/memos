@@ -144,11 +144,11 @@ const PreferencesSection = () => {
       >
         <SettingList>
           <SettingListItem
-            label={t("setting.preference.save-media-metadata")}
-            description={t("setting.preference.save-media-metadata-description")}
+            label={t("setting.preference.save-video-metadata")}
+            description={t("setting.preference.save-video-metadata-description")}
           >
             <Switch
-              aria-label={t("setting.preference.save-media-metadata")}
+              aria-label={t("setting.preference.save-video-metadata")}
               checked={setting.saveMediaMetadata}
               disabled={isUpdatingGeneralSetting}
               onCheckedChange={handleSaveMediaMetadataChange}

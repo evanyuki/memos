@@ -34,7 +34,6 @@ describe("media metadata display formatting", () => {
       file: "MP4 · 1.0 MB",
       dimensions: "1920 × 1080 px",
       duration: "0:13",
-      hasSavedMetadata: true,
     });
   });
 });

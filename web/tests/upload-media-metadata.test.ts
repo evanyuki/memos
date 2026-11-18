@@ -27,8 +27,8 @@ import { uploadService } from "@/components/MemoEditor/services/uploadService";
 
 const createBlobUrl = (file: File) => `blob:${file.name}`;
 
-const localImage = (mediaMetadata?: LocalFile["mediaMetadata"]): LocalFile => ({
-  file: new File(["image"], "photo.png", { type: "image/png" }),
+const localVideo = (mediaMetadata?: LocalFile["mediaMetadata"]): LocalFile => ({
+  file: new File(["video"], "clip.mp4", { type: "video/mp4" }),
   previewUrl: "blob:photo",
   origin: "upload",
   mediaMetadata,
@@ -36,7 +36,7 @@ const localImage = (mediaMetadata?: LocalFile["mediaMetadata"]): LocalFile => ({
 
 describe("media metadata at file ingest", () => {
   it("does not extract metadata when the setting is disabled", () => {
-    const file = new File(["image"], "photo.png", { type: "image/png" });
+    const file = new File(["video"], "clip.mp4", { type: "video/mp4" });
 
     const [localFile] = toLocalFiles([file], { createBlobUrl, saveMediaMetadata: false });
 
@@ -47,7 +47,7 @@ describe("media metadata at file ingest", () => {
   it("starts extraction per file when the setting is enabled", async () => {
     const metadata = create(MediaMetadataSchema, { width: 1200, height: 800 });
     mocks.extractMetadata.mockResolvedValue(metadata);
-    const file = new File(["image"], "photo.png", { type: "image/png" });
+    const file = new File(["video"], "clip.mp4", { type: "video/mp4" });
 
     const [localFile] = toLocalFiles([file], { createBlobUrl, saveMediaMetadata: true });
 
@@ -62,7 +62,7 @@ describe("uploadService media metadata", () => {
   });
 
   it("submits no metadata for files ingested without any", async () => {
-    await uploadService.uploadFiles([localImage()]);
+    await uploadService.uploadFiles([localVideo()]);
 
     expect(mocks.createAttachment).toHaveBeenCalledOnce();
     expect(mocks.createAttachment.mock.calls[0][0].attachment.mediaMetadata).toBeUndefined();
@@ -71,13 +71,13 @@ describe("uploadService media metadata", () => {
   it("submits the metadata extracted at ingest", async () => {
     const metadata = create(MediaMetadataSchema, { width: 1200, height: 800 });
 
-    await uploadService.uploadFiles([localImage(Promise.resolve(metadata))]);
+    await uploadService.uploadFiles([localVideo(Promise.resolve(metadata))]);
 
     expect(mocks.createAttachment.mock.calls[0][0].attachment.mediaMetadata).toEqual(metadata);
   });
 
   it("continues without metadata when extraction produced no usable values", async () => {
-    await uploadService.uploadFiles([localImage(Promise.resolve(undefined))]);
+    await uploadService.uploadFiles([localVideo(Promise.resolve(undefined))]);
 
     expect(mocks.createAttachment).toHaveBeenCalledOnce();
     expect(mocks.createAttachment.mock.calls[0][0].attachment.mediaMetadata).toBeUndefined();
@@ -86,7 +86,7 @@ describe("uploadService media metadata", () => {
   it("submits ingest-time metadata end to end", async () => {
     const metadata = create(MediaMetadataSchema, { width: 640, height: 480 });
     mocks.extractMetadata.mockResolvedValue(metadata);
-    const file = new File(["image"], "photo.png", { type: "image/png" });
+    const file = new File(["video"], "clip.mp4", { type: "video/mp4" });
 
     await uploadService.uploadFiles(toLocalFiles([file], { createBlobUrl, saveMediaMetadata: true }));
 

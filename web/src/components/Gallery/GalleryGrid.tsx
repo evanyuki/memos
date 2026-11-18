@@ -1,6 +1,6 @@
 import { CameraIcon, LoaderCircleIcon, LockKeyholeIcon, PlayIcon } from "lucide-react";
 import { Masonry, type RenderComponentProps } from "masonic";
-import { createContext, useContext, useMemo, useState } from "react";
+import { createContext, useContext, useEffect, useMemo, useState } from "react";
 import { Link, useSearchParams } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import { useAuth } from "@/contexts/AuthContext";
@@ -85,6 +85,9 @@ export default function GalleryGrid() {
   const [params] = useSearchParams();
   const filters = readGalleryFilters(params);
   const query = useGalleryPhotos(filters);
+  useEffect(() => {
+    if (query.data) void import("@/pages/GalleryPhoto").catch(() => {});
+  }, [query.data]);
   const desktop = useMediaQuery("lg");
   const loadError = query.isError && !query.isFetchNextPageError;
   const isDisplayPending = query.isPending || !isUserSettingsInitialized;

@@ -17,29 +17,28 @@ export default function GalleryShareActions({ attachment, shareUrl, title }: { a
   const canShareFiles = !!(canShare && file && navigator.canShare?.({ files: [file] }));
   const showSystemShare = canShare && (!!shareUrl || canShareFiles);
 
-  const copyLink = async () => {
-    if (!shareUrl) return;
+  const copyLink = async (url: string, successMessage: string) => {
     try {
-      await navigator.clipboard.writeText(shareUrl);
-      toast.success(t("gallery.link-copied"));
+      await navigator.clipboard.writeText(url);
+      toast.success(successMessage);
     } catch {
       toast.error(t("gallery.copy-error"));
     }
   };
 
   const share = async (instagram = false) => {
-    if (sharing || (!shareUrl && !file)) return;
+    if (sharing) return;
     const files = file ? [file] : [];
     if (instagram && !canShareFiles) {
       if (file) {
         downloadGalleryShareFile(file);
-        if (shareUrl) await copyLink();
-        toast.success(t("gallery.share-instagram-download"));
+        const message = t("gallery.share-instagram-download");
+        if (shareUrl) await copyLink(shareUrl, message);
+        else toast.success(message);
       }
       return;
     }
-    if (!canShare) return;
-    if (!shareUrl && !canShareFiles) return;
+    if (!showSystemShare) return;
     try {
       setSharing(true);
       // Prepared files keep this call inside the click's transient user activation.
@@ -58,7 +57,13 @@ export default function GalleryShareActions({ attachment, shareUrl, title }: { a
           <span className="min-w-0 flex-1 truncate text-xs text-muted-foreground" title={shareUrl}>
             {shareUrl}
           </span>
-          <Button variant="ghost" size="icon" className="size-8 shrink-0" onClick={copyLink} aria-label={t("gallery.copy-link")}>
+          <Button
+            variant="ghost"
+            size="icon"
+            className="size-8 shrink-0"
+            onClick={() => void copyLink(shareUrl, t("gallery.link-copied"))}
+            aria-label={t("gallery.copy-link")}
+          >
             <CopyIcon className="size-4" />
           </Button>
         </div>
@@ -99,12 +104,7 @@ export default function GalleryShareActions({ attachment, shareUrl, title }: { a
           <span className="text-xs">Instagram</span>
         </Button>
         {showSystemShare && (
-          <Button
-            variant="outline"
-            className="h-auto flex-col gap-2 py-3"
-            disabled={sharing || (!shareUrl && !file)}
-            onClick={() => void share()}
-          >
+          <Button variant="outline" className="h-auto flex-col gap-2 py-3" disabled={sharing} onClick={() => void share()}>
             <Share2Icon className="size-5" aria-hidden="true" />
             <span className="text-xs">{t("gallery.share-system")}</span>
           </Button>

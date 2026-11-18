@@ -1,7 +1,8 @@
 import { ChevronLeft, ChevronRight, InfoIcon, RotateCcw, X, ZoomIn, ZoomOut } from "lucide-react";
-import React, { useEffect, useMemo, useState } from "react";
+import React, { useEffect, useState } from "react";
 import MediaMetadataDetails from "@/components/MediaMetadataDetails";
 import MotionPhotoPreview from "@/components/MotionPhotoPreview";
+import ProgressivePhoto from "@/components/ProgressivePhoto";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogDescription, DialogTitle } from "@/components/ui/dialog";
 import { VisuallyHidden } from "@/components/ui/visually-hidden";
@@ -13,8 +14,7 @@ import type { PreviewMediaItem } from "@/utils/media-item";
 interface Props {
   open: boolean;
   onOpenChange: (open: boolean) => void;
-  imgUrls?: string[];
-  items?: PreviewMediaItem[];
+  items: PreviewMediaItem[];
   initialIndex?: number;
 }
 
@@ -25,55 +25,27 @@ const DOUBLE_TAP_ZOOM = 2;
 
 const clampZoom = (scale: number) => Math.min(MAX_ZOOM, Math.max(MIN_ZOOM, scale));
 
-// Keep the feed thumbnail visible while only the selected original loads and decodes.
-const PreviewImage = ({ src, posterUrl, alt, ...props }: React.ComponentProps<"img"> & { src: string; posterUrl?: string }) => {
-  const [loadedSource, setLoadedSource] = useState<string>();
-
-  useEffect(() => {
-    if (!posterUrl || posterUrl === src) return;
-
-    let cancelled = false;
-    const image = new window.Image();
-    image.decoding = "async";
-    image.onload = async () => {
-      await image.decode?.().catch(() => {});
-      if (!cancelled) setLoadedSource(src);
-    };
-    image.src = src;
-
-    return () => {
-      cancelled = true;
-      image.onload = null;
-      image.removeAttribute("src");
-    };
-  }, [src, posterUrl]);
-
-  return <img {...props} src={loadedSource === src ? src : posterUrl || src} alt={alt} onError={() => setLoadedSource(src)} />;
-};
-
-function PreviewImageDialog({ open, onOpenChange, imgUrls = [], items, initialIndex = 0 }: Props) {
+function PreviewImageDialog({ open, onOpenChange, items, initialIndex = 0 }: Props) {
   const t = useTranslate();
   const sm = useMediaQuery("sm");
   const [currentIndex, setCurrentIndex] = useState(initialIndex);
   const [zoomScale, setZoomScale] = useState(MIN_ZOOM);
-  const [showDetails, setShowDetails] = useState(false);
-  const previewItems = useMemo(
-    () => items ?? imgUrls.map((url) => ({ id: url, kind: "image" as const, sourceUrl: url, posterUrl: url, filename: "Image" })),
-    [imgUrls, items],
-  );
+  const [detailsRequested, setDetailsRequested] = useState(false);
 
   useEffect(() => {
     if (open) {
       setCurrentIndex(initialIndex);
-      setShowDetails(false);
+      setDetailsRequested(false);
     }
   }, [initialIndex, open]);
 
-  const itemCount = previewItems.length;
+  const itemCount = items.length;
   const safeIndex = Math.max(0, Math.min(currentIndex, itemCount - 1));
-  const currentItem = previewItems[safeIndex];
+  const currentItem = items[safeIndex];
   const hasMultiple = itemCount > 1;
   const isImagePreview = currentItem?.kind === "image";
+  const hasAttachmentDetails = Boolean(currentItem?.attachments?.length);
+  const showDetails = hasAttachmentDetails && detailsRequested;
   const canGoPrevious = safeIndex > 0;
   const canGoNext = safeIndex < itemCount - 1;
   const zoomPercent = Math.round(zoomScale * 100);
@@ -135,7 +107,7 @@ function PreviewImageDialog({ open, onOpenChange, imgUrls = [], items, initialIn
       onOpenChange={(nextOpen, eventDetails) => {
         if (!nextOpen && showDetails && eventDetails.reason === "escape-key") {
           eventDetails.cancel();
-          setShowDetails(false);
+          setDetailsRequested(false);
           return;
         }
         onOpenChange(nextOpen);
@@ -166,18 +138,20 @@ function PreviewImageDialog({ open, onOpenChange, imgUrls = [], items, initialIn
             </div>
 
             <div className="flex shrink-0 items-center gap-1.5">
-              <Button
-                type="button"
-                onClick={() => setShowDetails((visible) => !visible)}
-                variant="ghost"
-                size="icon"
-                className={cn("rounded-full text-white hover:bg-white/16 hover:text-white", showDetails ? "bg-white/18" : "bg-white/10")}
-                aria-label={showDetails ? t("attachment-details.actions.hide") : t("attachment-details.actions.show")}
-                aria-expanded={showDetails}
-                aria-controls="attachment-media-details"
-              >
-                <InfoIcon className="h-4 w-4" />
-              </Button>
+              {hasAttachmentDetails && (
+                <Button
+                  type="button"
+                  onClick={() => setDetailsRequested((visible) => !visible)}
+                  variant="ghost"
+                  size="icon"
+                  className={cn("rounded-full text-white hover:bg-white/16 hover:text-white", showDetails ? "bg-white/18" : "bg-white/10")}
+                  aria-label={showDetails ? t("attachment-details.actions.hide") : t("attachment-details.actions.show")}
+                  aria-expanded={showDetails}
+                  aria-controls="attachment-media-details"
+                >
+                  <InfoIcon className="h-4 w-4" />
+                </Button>
+              )}
               <Button
                 type="button"
                 onClick={handleClose}
@@ -203,7 +177,7 @@ function PreviewImageDialog({ open, onOpenChange, imgUrls = [], items, initialIn
           onClick={(event) => {
             if (event.target === event.currentTarget && !isZoomed) {
               if (showDetails) {
-                setShowDetails(false);
+                setDetailsRequested(false);
               } else {
                 handleClose();
               }
@@ -238,7 +212,7 @@ function PreviewImageDialog({ open, onOpenChange, imgUrls = [], items, initialIn
                 )}
               />
             ) : (
-              <PreviewImage
+              <ProgressivePhoto
                 key={currentItem.id}
                 src={currentItem.sourceUrl}
                 posterUrl={currentItem.posterUrl}
@@ -343,7 +317,9 @@ function PreviewImageDialog({ open, onOpenChange, imgUrls = [], items, initialIn
           </div>
         )}
 
-        {showDetails && <MediaMetadataDetails id="attachment-media-details" item={currentItem} onClose={() => setShowDetails(false)} />}
+        {showDetails && (
+          <MediaMetadataDetails id="attachment-media-details" item={currentItem} onClose={() => setDetailsRequested(false)} />
+        )}
       </DialogContent>
     </Dialog>
   );

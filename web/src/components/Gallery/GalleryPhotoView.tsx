@@ -12,7 +12,15 @@ import GalleryPhotoViewer from "./GalleryPhotoViewer";
 import GallerySharePanel from "./GallerySharePanel";
 import { getGalleryAttachments } from "./gallery-media";
 
-export default function GalleryPhotoView({ photo, shareToken }: { photo: GalleryPhoto; shareToken?: string }) {
+export default function GalleryPhotoView({
+  photo,
+  shareToken,
+  loadingDetails = false,
+}: {
+  photo: GalleryPhoto;
+  shareToken?: string;
+  loadingDetails?: boolean;
+}) {
   const t = useTranslate();
   const { currentUser, userTagsSetting } = useAuth();
   const location = useLocation();
@@ -23,14 +31,14 @@ export default function GalleryPhotoView({ photo, shareToken }: { photo: Gallery
   const { memo, attachment } = photo;
   const uid = attachment.name.split("/").pop()!;
   const owner = !shareToken && currentUser?.name === memo.creator;
-  const canShare = !shareToken && (owner || memo.visibility === Visibility.PUBLIC);
+  const canShare = !loadingDetails && !shareToken && (owner || memo.visibility === Visibility.PUBLIC);
   const blurred = memo.tags.some((tag) => userTagsSetting && findTagMetadata(tag, userTagsSetting)?.blurContent) && !revealed;
   const items = useMemo(() => {
-    const photos = getGalleryAttachments(memo.attachments);
+    const photos = getGalleryAttachments(memo.attachments.length ? memo.attachments : [attachment]);
     return buildAttachmentVisualItems(shareToken ? withShareAttachmentLinks(photos, shareToken) : photos).filter(
       (item) => item.kind !== "video",
     );
-  }, [memo.attachments, shareToken]);
+  }, [attachment, memo.attachments, shareToken]);
   const item = items.find((item) => item.attachmentNames.includes(attachment.name)) ?? buildAttachmentVisualItems([attachment])[0];
   const itemIndex = Math.max(
     0,
@@ -83,7 +91,9 @@ export default function GalleryPhotoView({ photo, shareToken }: { photo: Gallery
       onNext={next ? () => go(next) : undefined}
       onSelect={(selectedIndex) => go(siblingUids[selectedIndex])}
       onShare={canShare ? () => setShare(true) : undefined}
-      inspectorContent={<GalleryMemoDetails photo={photo} shareToken={shareToken} />}
+      inspectorContent={
+        loadingDetails ? <p role="status">{t("resource.fetching-data")}</p> : <GalleryMemoDetails photo={photo} shareToken={shareToken} />
+      }
     >
       {canShare && share && <GallerySharePanel photo={photo} onClose={() => setShare(false)} />}
     </GalleryPhotoViewer>
