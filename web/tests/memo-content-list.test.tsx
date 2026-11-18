@@ -59,7 +59,7 @@ describe("memo content lists", () => {
   it("keeps loose task list paragraphs while aligning the first line", () => {
     const html = renderListContent("- [ ] plan\n\n  keep details\n\n- [ ] zzzz");
 
-    expect(html).toMatch(/<li class="[^"]*task-list-item[^"]*">\s*<input type="checkbox" disabled=""\/>/);
+    expect(html).toMatch(/<li class="[^"]*task-list-item[^"]*"[^>]*>\s*<input type="checkbox" disabled=""\/>/);
     expect(html).toContain('<div class="min-w-0 [overflow-wrap:anywhere] [&amp;&gt;*:last-child]:mb-0">');
     expect(html).toContain("<p> plan</p>");
     expect(html).toContain("<p>keep details</p>");

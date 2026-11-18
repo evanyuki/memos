@@ -92,14 +92,14 @@ interface ListItemProps extends React.LiHTMLAttributes<HTMLLIElement>, ReactMark
  * List item component for both regular and task list items
  * Detects task items via the "task-list-item" class added by remark-gfm
  */
-export const ListItem = ({ children, className, node: _node, ...domProps }: ListItemProps) => {
+export const ListItem = ({ children, className, node, ...domProps }: ListItemProps) => {
   const isTaskListItem = className?.includes(TASK_LIST_ITEM_CLASS);
 
   if (isTaskListItem) {
     const { checkbox, content } = splitTaskListItemChildren(children);
 
     return (
-      <li className={cn(markdownStyles.taskListItem, className)} {...domProps}>
+      <li className={cn(markdownStyles.taskListItem, className)} {...domProps} data-task-start={node?.position?.start.offset}>
         <NestedMarkdownRenderContext>
           {checkbox}
           <div className={markdownStyles.taskItemContent}>{content}</div>
