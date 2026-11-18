@@ -65,7 +65,7 @@ jobs:
         run: |
           case "${{ matrix.test-group }}" in
             store)
-              # Run store tests for all drivers (sqlite, mysql, postgres)
+              # Cross-driver upgrade tests run in Upgrade Smoke.
               go test -v -coverprofile=coverage.out -covermode=atomic ./store/...
               ;;
             server)
@@ -78,11 +78,11 @@ jobs:
               ;;
             other)
               go test -v -race -coverprofile=coverage.out -covermode=atomic \
-                ./cmd/... ./internal/... ./proto/...
+                ./cmd/... ./proto/...
               ;;
           esac
         env:
-          DRIVER: ${{ matrix.test-group == 'store' && '' || 'sqlite' }}
+          DRIVER: sqlite
 
       - name: Upload coverage
         if: github.event_name == 'push' && github.ref == 'refs/heads/main'

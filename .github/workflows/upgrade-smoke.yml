@@ -58,8 +58,7 @@ jobs:
           cache: true
           cache-dependency-path: go.sum
 
-      # No -race here: testcontainers has known races in its reaper, which is why
-      # store/test/migrator_test.go documents skipping the race detector.
+      # The testcontainers reaper has known races under the race detector.
       - name: Run migration and upgrade tests
         run: |
           go test -v -timeout 30m -run 'TestMigration|TestUpgrade|TestFreshInstall' ./store/test/...
