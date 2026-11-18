@@ -19,12 +19,6 @@ const AttachmentCard = ({ attachment, onClick, className }: AttachmentCardProps)
         alt={attachment.filename}
         className={cn("w-full h-full object-cover rounded-lg cursor-pointer", className)}
         onClick={onClick}
-        onError={(e) => {
-          const target = e.currentTarget;
-          if (target.src.includes("?thumbnail=true")) {
-            target.src = sourceUrl;
-          }
-        }}
         decoding="async"
         loading="lazy"
       />

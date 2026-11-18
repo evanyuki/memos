@@ -76,7 +76,6 @@ const Attachments = () => {
     mediaGroups,
     mediaPreviewItems,
     refetch,
-    stats,
   } = useAttachmentLibrary(i18n.language);
   const {
     error: unusedError,
@@ -160,23 +159,23 @@ const Attachments = () => {
     }
 
     if (attachmentSection === "all") {
-      const total = stats.media + stats.documents + stats.audio;
+      const total = mediaPreviewItems.length + documentItems.length + audioItems.length;
       if (total === 0) return <div className="py-16 text-center text-sm text-muted-foreground">{t("attachment-library.empty.all")}</div>;
       return (
         <div className="space-y-9">
-          {stats.media > 0 && (
+          {mediaPreviewItems.length > 0 && (
             <section className="space-y-3">
               <h2 className="text-sm font-medium text-foreground">{t("attachment-library.tabs.media")}</h2>
               <AttachmentMediaGrid groups={mediaGroups} onPreview={handlePreview} />
             </section>
           )}
-          {stats.documents > 0 && (
+          {documentItems.length > 0 && (
             <section className="space-y-3">
               <h2 className="text-sm font-medium text-foreground">{t("attachment-library.tabs.documents")}</h2>
               <AttachmentDocumentRows items={documentItems} />
             </section>
           )}
-          {stats.audio > 0 && (
+          {audioItems.length > 0 && (
             <section className="space-y-3">
               <h2 className="text-sm font-medium text-foreground">{t("attachment-library.tabs.audio")}</h2>
               <AttachmentAudioRows items={audioItems} />
@@ -187,17 +186,17 @@ const Attachments = () => {
     }
 
     if (attachmentSection === "media") {
-      if (stats.media === 0) return <AttachmentLibraryEmptyState tab="media" />;
+      if (mediaPreviewItems.length === 0) return <AttachmentLibraryEmptyState tab="media" />;
       return <AttachmentMediaGrid groups={mediaGroups} onPreview={handlePreview} />;
     }
 
     if (attachmentSection === "documents") {
-      if (stats.documents === 0) return <AttachmentLibraryEmptyState tab="documents" />;
+      if (documentItems.length === 0) return <AttachmentLibraryEmptyState tab="documents" />;
       return <AttachmentDocumentRows items={documentItems} />;
     }
 
     if (attachmentSection === "audio") {
-      if (stats.audio === 0) return <AttachmentLibraryEmptyState tab="audio" />;
+      if (audioItems.length === 0) return <AttachmentLibraryEmptyState tab="audio" />;
       return <AttachmentAudioRows items={audioItems} />;
     }
 

@@ -7,8 +7,8 @@ import {
   isImageAttachment,
   isVideoAttachment,
 } from "@/components/MemoMetadata/Attachment/attachmentHelpers";
-import { useInfiniteAttachments } from "@/hooks/useAttachmentQueries";
-import type { Attachment, ListAttachmentsRequest } from "@/types/proto/api/v1/attachment_service_pb";
+import { type AttachmentListOptions, useInfiniteAttachments } from "@/hooks/useAttachmentQueries";
+import type { Attachment } from "@/types/proto/api/v1/attachment_service_pb";
 import { getAttachmentUrl, isMotionAttachment } from "@/utils/attachment";
 import { useTranslate } from "@/utils/i18n";
 import { type AttachmentVisualItem, buildAttachmentVisualItems, countLogicalAttachmentItems } from "@/utils/media-item";
@@ -61,7 +61,7 @@ const UNUSED_ATTACHMENT_LIBRARY_REQUEST = {
   orderBy: "create_time desc",
 };
 
-const useCompleteAttachments = (request: Partial<ListAttachmentsRequest>, enabled = true) => {
+const useCompleteAttachments = (request: AttachmentListOptions, enabled = true) => {
   const query = useInfiniteAttachments(request, { enabled });
 
   useEffect(() => {
@@ -166,7 +166,7 @@ const groupMediaByMonth = (
               month: "short",
               year: "numeric",
             }),
-      items: groupedItems.sort((a, b) => sortByNewest(a.createdAt, b.createdAt)),
+      items: groupedItems,
     }));
 };
 
@@ -178,11 +178,6 @@ export function useAttachmentLibrary(locale: string) {
 
   const linkedAttachments = useMemo(
     () => attachments.filter(isLinkedAttachment).sort((a, b) => sortByNewest(toCreatedAt(a), toCreatedAt(b))),
-    [attachments],
-  );
-
-  const unusedAttachments = useMemo(
-    () => attachments.filter((attachment) => !isLinkedAttachment(attachment)).sort((a, b) => sortByNewest(toCreatedAt(a), toCreatedAt(b))),
     [attachments],
   );
 
@@ -207,37 +202,18 @@ export function useAttachmentLibrary(locale: string) {
     [linkedAttachments, locale],
   );
 
-  const unusedItems = useMemo(
-    () => unusedAttachments.map((attachment) => toLibraryListItem(attachment, locale)),
-    [unusedAttachments, locale],
-  );
-
   const mediaGroups = useMemo(
     () => groupMediaByMonth(mediaItems, locale, t("attachment-library.labels.unknown-date")),
     [locale, mediaItems, t],
   );
   const mediaPreviewItems = useMemo(() => mediaItems.map((item) => item.previewItem), [mediaItems]);
 
-  const stats = useMemo<AttachmentLibraryStats>(
-    () => ({
-      unused: unusedAttachments.length,
-      media: mediaItems.length,
-      documents: documentItems.length,
-      audio: audioItems.length,
-    }),
-    [audioItems.length, documentItems.length, mediaItems.length, unusedAttachments.length],
-  );
-
   return {
     ...query,
-    attachments,
     mediaGroups,
-    mediaItems,
     mediaPreviewItems,
     documentItems,
     audioItems,
-    unusedItems,
-    stats,
   };
 }
 
