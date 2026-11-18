@@ -9,6 +9,7 @@ import (
 	"time"
 
 	"github.com/pkg/errors"
+	"golang.org/x/sync/errgroup"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
 	"google.golang.org/protobuf/proto"
@@ -208,6 +209,17 @@ func (s *APIV1Service) ListMemosWithImages(ctx context.Context, request *v1pb.Li
 }
 
 func (s *APIV1Service) listMemos(ctx context.Context, request *v1pb.ListMemosRequest, imagesOnly bool) (*v1pb.ListMemosResponse, error) {
+	lastStage := time.Now()
+	var timings []string
+	mark := func(stage string) {
+		now := time.Now()
+		timings = append(timings, fmt.Sprintf("%s;dur=%.1f", stage, float64(now.Sub(lastStage).Microseconds())/1000))
+		lastStage = now
+	}
+	defer func() {
+		mark("convert")
+		_ = SetResponseHeader(ctx, "Server-Timing", strings.Join(timings, ", "))
+	}()
 	memoFind := &store.FindMemo{
 		// Exclude comments by default.
 		ExcludeComments:     true,
@@ -274,6 +286,7 @@ func (s *APIV1Service) listMemos(ctx context.Context, request *v1pb.ListMemosReq
 	limitPlusOne := limit + 1
 	memoFind.Limit = &limitPlusOne
 	memoFind.Offset = &offset
+	mark("auth_filter")
 	memos, err := s.Store.ListMemos(ctx, memoFind)
 	if err != nil {
 		return nil, status.Errorf(codes.Internal, "failed to list memos: %v", err)
@@ -289,6 +302,7 @@ func (s *APIV1Service) listMemos(ctx context.Context, request *v1pb.ListMemosReq
 		}
 	}
 
+	mark("memos")
 	if len(memos) == 0 {
 		response := &v1pb.ListMemosResponse{
 			Memos:         memoMessages,
@@ -308,33 +322,63 @@ func (s *APIV1Service) listMemos(ctx context.Context, request *v1pb.ListMemosReq
 		memoIDs = append(memoIDs, m.ID)
 	}
 
+	mark("page")
 	var reactions []*store.Reaction
-	if !imagesOnly {
-		reactions, err = s.Store.ListReactions(ctx, &store.FindReaction{ContentIDList: contentIDs})
-		if err != nil {
-			return nil, status.Errorf(codes.Internal, "failed to list reactions")
-		}
-		for _, reaction := range reactions {
-			reactionMap[reaction.ContentID] = append(reactionMap[reaction.ContentID], reaction)
-		}
-	}
-
-	// ATTACHMENTS
-	attachments, err := s.Store.ListAttachments(ctx, &store.FindAttachment{MemoIDList: memoIDs})
-	if err != nil {
-		return nil, status.Errorf(codes.Internal, "failed to list attachments")
-	}
-	for _, attachment := range attachments {
-		attachmentMap[*attachment.MemoID] = append(attachmentMap[*attachment.MemoID], attachment)
-	}
-
 	var relationMap map[int32][]*v1pb.MemoRelation
-	if !imagesOnly {
-		relationMap, err = s.batchConvertMemoRelations(ctx, memos, false)
+	// These reads depend only on the page IDs. Keep within the deployment's
+	// two-connection pool while overlapping independent database round trips.
+	group, reads := errgroup.WithContext(ctx)
+	group.SetLimit(2)
+	var attachmentTime, reactionTime, relationTime time.Duration
+	group.Go(func() error {
+		start := time.Now()
+		attachments, err := s.Store.ListAttachments(reads, &store.FindAttachment{MemoIDList: memoIDs})
+		attachmentTime = time.Since(start)
 		if err != nil {
-			return nil, status.Errorf(codes.Internal, "failed to batch load memo relations")
+			return status.Errorf(codes.Internal, "failed to list attachments")
+		}
+		for _, attachment := range attachments {
+			attachmentMap[*attachment.MemoID] = append(attachmentMap[*attachment.MemoID], attachment)
+		}
+		return nil
+	})
+	if !imagesOnly {
+		group.Go(func() error {
+			start := time.Now()
+			var err error
+			reactions, err = s.Store.ListReactions(reads, &store.FindReaction{ContentIDList: contentIDs})
+			reactionTime = time.Since(start)
+			if err != nil {
+				return status.Errorf(codes.Internal, "failed to list reactions")
+			}
+			for _, reaction := range reactions {
+				reactionMap[reaction.ContentID] = append(reactionMap[reaction.ContentID], reaction)
+			}
+			return nil
+		})
+		group.Go(func() error {
+			start := time.Now()
+			var err error
+			relationMap, err = s.batchConvertMemoRelations(reads, memos, false)
+			relationTime = time.Since(start)
+			if err != nil {
+				return status.Errorf(codes.Internal, "failed to batch load memo relations")
+			}
+			return nil
+		})
+	}
+	if err := group.Wait(); err != nil {
+		return nil, err
+	}
+	for _, measurement := range []struct {
+		name     string
+		duration time.Duration
+	}{{"attachments", attachmentTime}, {"reactions", reactionTime}, {"relations", relationTime}} {
+		if measurement.duration > 0 {
+			timings = append(timings, fmt.Sprintf("%s;dur=%.1f", measurement.name, float64(measurement.duration.Microseconds())/1000))
 		}
 	}
+	lastStage = time.Now()
 	creatorIDs := make([]int32, 0, len(memos)+len(reactions))
 	for _, memo := range memos {
 		creatorIDs = append(creatorIDs, memo.CreatorID)
@@ -348,6 +392,7 @@ func (s *APIV1Service) listMemos(ctx context.Context, request *v1pb.ListMemosReq
 	if err != nil {
 		return nil, status.Errorf(codes.Internal, "failed to list memo creators: %v", err)
 	}
+	mark("authors")
 	for _, memo := range memos {
 		memoName := fmt.Sprintf("%s%s", MemoNamePrefix, memo.UID)
 		reactions := reactionMap[memoName]

@@ -2,8 +2,10 @@ package v1
 
 import (
 	"context"
+	"fmt"
 	"log/slog"
 	"strings"
+	"time"
 
 	"github.com/pkg/errors"
 	"google.golang.org/grpc/codes"
@@ -43,6 +45,10 @@ func (c *instanceSettingCaller) currentUser(ctx context.Context, service *APIV1S
 
 // GetInstanceProfile returns the instance profile.
 func (s *APIV1Service) GetInstanceProfile(ctx context.Context, _ *v1pb.GetInstanceProfileRequest) (*v1pb.InstanceProfile, error) {
+	started := time.Now()
+	defer func() {
+		_ = SetResponseHeader(ctx, "Server-Timing", fmt.Sprintf("profile;dur=%.1f", float64(time.Since(started).Microseconds())/1000))
+	}()
 	admin, err := s.GetInstanceAdmin(ctx)
 	if err != nil {
 		return nil, status.Errorf(codes.Internal, "failed to get instance admin: %v", err)
@@ -52,10 +58,14 @@ func (s *APIV1Service) GetInstanceProfile(ctx context.Context, _ *v1pb.GetInstan
 	// the real signal for first-run setup. It is deliberately independent of the
 	// admin lookup: an instance that has lost its admins still has users and must
 	// not be treated as a fresh install.
-	limitOne := 1
-	users, err := s.Store.ListUsers(ctx, &store.FindUser{Limit: &limitOne})
-	if err != nil {
-		return nil, status.Errorf(codes.Internal, "failed to list users: %v", err)
+	needsSetup := false
+	if admin == nil {
+		limitOne := 1
+		users, err := s.Store.ListUsers(ctx, &store.FindUser{Limit: &limitOne})
+		if err != nil {
+			return nil, status.Errorf(codes.Internal, "failed to list users: %v", err)
+		}
+		needsSetup = len(users) == 0
 	}
 
 	instanceProfile := &v1pb.InstanceProfile{
@@ -64,7 +74,7 @@ func (s *APIV1Service) GetInstanceProfile(ctx context.Context, _ *v1pb.GetInstan
 		InstanceUrl: s.Profile.InstanceURL,
 		Admin:       admin, // for display only; may be nil even on a populated instance
 		Commit:      s.Profile.Commit,
-		NeedsSetup:  len(users) == 0,
+		NeedsSetup:  needsSetup,
 	}
 	return instanceProfile, nil
 }

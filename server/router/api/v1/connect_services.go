@@ -16,11 +16,9 @@ import (
 // InstanceService
 
 func (s *ConnectServiceHandler) GetInstanceProfile(ctx context.Context, req *connect.Request[v1pb.GetInstanceProfileRequest]) (*connect.Response[v1pb.InstanceProfile], error) {
-	resp, err := s.APIV1Service.GetInstanceProfile(ctx, req.Msg)
-	if err != nil {
-		return nil, convertGRPCError(err)
-	}
-	return connect.NewResponse(resp), nil
+	return connectWithHeaderCarrier(ctx, func(ctx context.Context) (*v1pb.InstanceProfile, error) {
+		return s.APIV1Service.GetInstanceProfile(ctx, req.Msg)
+	})
 }
 
 func (s *ConnectServiceHandler) GetInstanceSetting(ctx context.Context, req *connect.Request[v1pb.GetInstanceSettingRequest]) (*connect.Response[v1pb.InstanceSetting], error) {
@@ -312,11 +310,9 @@ func (s *ConnectServiceHandler) CreateMemo(ctx context.Context, req *connect.Req
 }
 
 func (s *ConnectServiceHandler) ListMemos(ctx context.Context, req *connect.Request[v1pb.ListMemosRequest]) (*connect.Response[v1pb.ListMemosResponse], error) {
-	resp, err := s.APIV1Service.ListMemos(ctx, req.Msg)
-	if err != nil {
-		return nil, convertGRPCError(err)
-	}
-	return connect.NewResponse(resp), nil
+	return connectWithHeaderCarrier(ctx, func(ctx context.Context) (*v1pb.ListMemosResponse, error) {
+		return s.APIV1Service.ListMemos(ctx, req.Msg)
+	})
 }
 
 func (s *ConnectServiceHandler) GetMemo(ctx context.Context, req *connect.Request[v1pb.GetMemoRequest]) (*connect.Response[v1pb.Memo], error) {
