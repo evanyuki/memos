@@ -44,6 +44,8 @@ RUN apk add --no-cache exiftool vips-tools vips-heif ffmpeg ca-certificates tzda
 
 COPY --from=backend /out/memos /usr/local/bin/memos
 COPY --chmod=0555 scripts/run-vercel.sh /usr/local/bin/run-vercel
+ADD --chmod=0444 --checksum=sha256:700723581420dd1ac98fd7e9ac529f0ef210eadcaf87fc868a3ad7d114c2f3b7 \
+    https://supabase-downloads.s3-ap-southeast-1.amazonaws.com/prod/ssl/prod-ca-2021.crt /etc/ssl/memos/supabase-root.crt
 
 USER nonroot
 WORKDIR /tmp/memos
